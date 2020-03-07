@@ -7,7 +7,6 @@ class WP2008Dataset(Dataset):
     """
     def __init__(self, tensor):
         self.tensor = tensor
-        pass
 
     def __getitem__(self, index):
         return self.tensor[index]
