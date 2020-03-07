@@ -18,16 +18,16 @@ class SentenceMapper():
     """
     Maps a list of sentences to tensor format.
     """
-    def __init__(self, sentences, index, N):
+    def __init__(self, sentences, word_to_idx, idx_to_word, N):
         self.N = N
         self.sentences = sentences
-        self.index = index
-        self.V = len(index.keys())
+        self.word_to_idx = word_to_idx
+        self.V = len(word_to_idx.keys())
         self.D = len(sentences)
 
     def map_sentences_to_tensors(self, padding_character="</s>"):
         sentences = self.sentences
-        index = self.index
+        word_to_idx = self.word_to_idx
 
         # tensor size parameters
         D = self.D
@@ -58,8 +58,8 @@ class SentenceMapper():
             nof_words = len(split_sentence)
             for w_idx, word in enumerate(split_sentence):
 
-                # w_id is the index of the current word in the corpus index
-                w_id = index[word]
+                # w_id is the index of the current word in the corpus word_to_idx
+                w_id = word_to_idx[word]
 
                 # set 1 for 
                 tensor[s_idx, w_idx, w_id] = 1
@@ -69,10 +69,9 @@ class SentenceMapper():
             # pad rest of the tensor with padding_character
             if nof_words < N:
 
-                # index of the stop character in the corpus index
-                stop_id = index[padding_character]
+                # index of the stop character in the corpus word_to_idx
+                stop_id = word_to_idx[padding_character]
                 for padding_idx in range(nof_words, N):
                     tensor[s_idx, padding_idx, stop_id] = 1
 
-        print(tensor.size())
         return tensor

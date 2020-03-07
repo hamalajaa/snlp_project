@@ -46,16 +46,23 @@ def create_unique_words(lines):
 
 
 def build_index(unique_words):
-    d = {}
+    word_to_idx = {}
+    idx_to_word = {}
     for i, word in enumerate(unique_words):
-        d[word] = i
+        word_to_idx[word] = i
+        idx_to_word[i] = word
 
-    return d
+    return word_to_idx, idx_to_word
 
-lines = read_file(data_file)
-unique_words, nof_unique_words, n = create_unique_words(lines)
 
-print(unique_words, "\n", nof_unique_words, "\n", n)
-print("lines", len(lines))
-mapper = SentenceMapper(lines, build_index(unique_words),n)
-mapper.map_sentences_to_tensors()
+def inputs_and_targets_from_sequences(tensor):
+        
+        # An input tensor of shape [d x n x v] is expected where:
+        #       d = number of sentences
+        #       n = length of the longest sentence
+        #       v = vocabulary size
+
+        inputs = tensor[:, :-1, :].float()
+        targets = tensor[:, 1:, :].float()
+            
+        return inputs, targets
