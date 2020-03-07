@@ -1,4 +1,5 @@
 import numpy as np
+from data_helper import SentenceMapper
 data_file = "testdata.txt"
 ngram_size = 6
 
@@ -54,5 +55,7 @@ def build_index(unique_words):
 lines = read_file(data_file)
 unique_words, nof_unique_words, n = create_unique_words(lines)
 
-
 print(unique_words, "\n", nof_unique_words, "\n", n)
+print("lines", len(lines))
+mapper = SentenceMapper(lines, build_index(unique_words),n)
+mapper.map_sentences_to_tensors()
