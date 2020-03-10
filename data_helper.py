@@ -1,10 +1,13 @@
 from torch.utils.data import Dataset
 import torch
+
+
 class WP2008Dataset(Dataset):
     """
     A custom Dataset for a list of sentences
     in tensor format.
     """
+
     def __init__(self, tensor):
         self.tensor = tensor
 
@@ -12,12 +15,14 @@ class WP2008Dataset(Dataset):
         return self.tensor[index]
 
     def __len__(self):
-        return self.tensors.size(0)
+        return self.tensor.size(0)
 
-class SentenceMapper():
+
+class SentenceMapper:
     """
     Maps a list of sentences to tensor format.
     """
+
     def __init__(self, sentences, word_to_idx, idx_to_word, N):
         self.N = N
         self.sentences = sentences
@@ -25,15 +30,15 @@ class SentenceMapper():
         self.V = len(word_to_idx.keys())
         self.D = len(sentences)
 
-    def map_sentences_to_tensors(self, padding_character="</s>"):
-        sentences = self.sentences
+    def map_sentences_to_tensors(self, batch, padding_character="</s>"):
+        sentences = batch
         word_to_idx = self.word_to_idx
 
         # tensor size parameters
-        D = self.D
+        D = len(sentences)
         N = self.N
         V = self.V
-        
+
         # Final tensor will be of size DxNxV where:
         #       D = Data size, number of sentences
         #       N = length of the longest sentence
@@ -47,7 +52,9 @@ class SentenceMapper():
         #        [[0,1,0],[0,1,0]],
         #        [[0,1,0],[0,0,1]],
         #        [[1,0,0],[0,0,1]]]
-        
+
+        # print("D, N, V", D, N, V)
+
         tensor = torch.zeros([D, N, V], dtype=torch.int32)
 
         # performs one-hot-encoding to sentence data
@@ -57,7 +64,6 @@ class SentenceMapper():
             # number of words in this sentence
             nof_words = len(split_sentence)
             for w_idx, word in enumerate(split_sentence):
-
                 # w_id is the index of the current word in the corpus word_to_idx
                 w_id = word_to_idx[word]
 

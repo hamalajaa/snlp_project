@@ -1,5 +1,8 @@
 import numpy as np
 from data_helper import SentenceMapper
+import torch
+from itertools import chain
+
 data_file = "testdata.txt"
 ngram_size = 6
 
@@ -8,6 +11,17 @@ def read_file(filename):
     with open(filename, 'r') as file:
         lines = list(map(lambda line: line.strip(), file.readlines()))
     return lines
+
+
+class ReadLines(torch.utils.data.Dataset):
+    def __init__(self, filename):
+        self.lines = read_file(filename)
+
+    def __getitem__(self, idx):
+        return self.lines[idx]
+
+    def __len__(self):
+        return len(self.lines)
 
 
 def create_unique_words(lines):
@@ -19,15 +33,16 @@ def create_unique_words(lines):
         nof_unique_words        length of unique words
         max_sentence_length     length of the longest sentence
     """
-    unique_words = []
+    np_lines = np.array(lines)
+    split = np.char.split(np_lines).tolist()
 
-    # Collect unique words from the corpus
-    for sentence in lines:
-        for word in sentence.split():
-            if word not in unique_words:
-                unique_words.append(word)
+    all_words = list(chain.from_iterable(split))
 
-        unique_words = sorted(unique_words)
+    unique_words = np.unique(all_words).tolist()
+    # all_words = np.fromiter(chain.from_iterable(split), str)
+
+    # flat = np.array(list(map(lambda sentence: sentence.flatten(), split)))
+    # all_words = np.array((list(map(lambda sentence: np.char.split(sentence), lines_np)))).flatten()
 
     """
     Add the stop icon to unique words.
@@ -39,8 +54,42 @@ def create_unique_words(lines):
     nof_unique_words = len(unique_words)
 
     # Calculate the maximum sentence length used in fixing tensor size
-    np_lines = np.array(lines)
     max_sentence_length = np.max([len(sentence.split()) for sentence in np_lines])
+
+    return unique_words, nof_unique_words, max_sentence_length
+
+
+def create_unique_words_no_numpy(lines):
+    """
+    Input:
+        lines                   Lines from corpus, one sentence per line
+    Output:
+        unique_words            all unique words in alphabetic order
+        nof_unique_words        length of unique words
+        max_sentence_length     length of the longest sentence
+    """
+
+    unique_words = []
+    # Collect unique words from the corpus
+    for sentence in lines:
+        for word in sentence.split():
+            if word not in unique_words:
+                unique_words.append(word)
+
+    unique_words = sorted(unique_words)
+
+    """
+    Add the stop icon to unique words.
+    This will allow our RNN to learn stopping of sentences.
+    In addition, it will allow us to have a fixed size
+    for our sentence tensors.
+    """
+    unique_words.append('</s>')
+    nof_unique_words = len(unique_words)
+
+    lines_np = np.array(lines)
+    # Calculate the maximum sentence length used in fixing tensor size
+    max_sentence_length = np.max([len(sentence.split()) for sentence in lines_np])
 
     return unique_words, nof_unique_words, max_sentence_length
 
@@ -56,13 +105,12 @@ def build_index(unique_words):
 
 
 def inputs_and_targets_from_sequences(tensor):
-        
-        # An input tensor of shape [d x n x v] is expected where:
-        #       d = number of sentences
-        #       n = length of the longest sentence
-        #       v = vocabulary size
+    # An input tensor of shape [d x n x v] is expected where:
+    #       d = number of sentences
+    #       n = length of the longest sentence
+    #       v = vocabulary size
 
-        inputs = tensor[:, :-1, :].float()
-        targets = tensor[:, 1:, :].float()
-            
-        return inputs, targets
+    inputs = tensor[:, :-1, :].float()
+    targets = tensor[:, 1:, :].float()
+
+    return inputs, targets
