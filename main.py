@@ -14,6 +14,7 @@ from timeit import default_timer as timer
 data_file = "testdata_medium.txt"
 ngram_size = 6
 
+cuda = torch.cuda.is_available()
 
 def main():
     # Init hps
@@ -25,15 +26,10 @@ def main():
     start = timer()
     unique_words, vocab_size, n = utils.create_unique_words(lines)
     end = timer()
-    print("with numpy:", (end - start))
-    start = timer()
-    # unique_words, vocab_size, n = utils.create_unique_words_no_numpy(lines)
-    end = timer()
-    print("without numpy:", (end - start))
+    print("Constructing unique words took:", (end - start))
 
     word_to_idx, idx_to_word = utils.build_index(unique_words)
     mapper = SentenceMapper(lines, word_to_idx, idx_to_word, n)
-    # mapper.map_sentences_to_tensors()
 
     # Construct dataloader
     dataset = utils.ReadLines(data_file)
@@ -50,9 +46,16 @@ def train_model(hps, idx_to_word, model, train_loader, validation_loader, mapper
     # Hyper-parameters
     num_epochs = hps.n_epochs
 
+    if cuda:
+        model = model.cuda()
+
     # Loss function and optimizer
     criterion = nn.CrossEntropyLoss()
-    optimizer = torch.optim.Adam(model.parameters(), lr=0.01)
+
+    if cuda:
+        optimizer = torch.optim.Adam(model.parameters(), lr=0.01).cuda()
+    else:
+        optimizer = torch.optim.Adam(model.parameters(), lr=0.01)
     # optimizer = torch.optim.SGD(model.parameters(), lr=0.1)
 
     # Track loss
@@ -69,26 +72,46 @@ def train_model(hps, idx_to_word, model, train_loader, validation_loader, mapper
         model.train()
 
         for _, data in enumerate(train_loader):
-
+            train_loop_start = timer()
+            data_map_start = timer()
             data = mapper.map_sentences_to_tensors(data)
+            data_map_end = timer()
+
+            # print("Mapping data to sensor took", (data_map_end - data_map_start))
 
             inputs, targets = utils.inputs_and_targets_from_sequences(data)
             _, target_idx = targets.max(dim=1)
 
             # Forward pass
-
+            forward_pass_start = timer()
             outputs = model(inputs)
+            forward_pass_end = timer()
+            # print("Forward pass took", (forward_pass_end - forward_pass_start))
 
             # Loss
+            loss_start = timer()
             loss = criterion(outputs, target_idx)
+            loss_end = timer()
+            # print("Loss took", (loss_end - loss_start))
 
             # Backward pass
+            backward_pass_start = timer()
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
+            backward_pass_end = timer()
+            # print("Backward pass took", (backward_pass_end - backward_pass_start))
 
             # Update loss
             epoch_training_loss += loss.detach().numpy()
+
+            train_loop_end = timer()
+            print("Mapping data to sensor", (data_map_end - data_map_start))
+            print("Forward pass", (forward_pass_end - forward_pass_start))
+            print("Loss", (loss_end - loss_start))
+            print("Backward pass", (backward_pass_end - backward_pass_start))
+            print("Total", (train_loop_end - train_loop_start))
+            print()
 
         # Validation
 

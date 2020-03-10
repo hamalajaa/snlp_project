@@ -8,7 +8,7 @@ class LSTM(nn.Module):
         super(LSTM, self).__init__()
 
         # Recurrent layer
-        self.lstm = nn.LSTM(vocab_size, hps.lstm_h_dim, 2)
+        self.lstm = nn.LSTM(vocab_size, hps.lstm_h_dim, 1)
 
         # Output layer
         self.l_out = nn.Linear(in_features=hps.lstm_h_dim,
