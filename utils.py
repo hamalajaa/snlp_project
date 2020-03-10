@@ -39,10 +39,6 @@ def create_unique_words(lines):
     all_words = list(chain.from_iterable(split))
 
     unique_words = np.unique(all_words).tolist()
-    # all_words = np.fromiter(chain.from_iterable(split), str)
-
-    # flat = np.array(list(map(lambda sentence: sentence.flatten(), split)))
-    # all_words = np.array((list(map(lambda sentence: np.char.split(sentence), lines_np)))).flatten()
 
     """
     Add the stop icon to unique words.
@@ -55,41 +51,6 @@ def create_unique_words(lines):
 
     # Calculate the maximum sentence length used in fixing tensor size
     max_sentence_length = np.max([len(sentence.split()) for sentence in np_lines])
-
-    return unique_words, nof_unique_words, max_sentence_length
-
-
-def create_unique_words_no_numpy(lines):
-    """
-    Input:
-        lines                   Lines from corpus, one sentence per line
-    Output:
-        unique_words            all unique words in alphabetic order
-        nof_unique_words        length of unique words
-        max_sentence_length     length of the longest sentence
-    """
-
-    unique_words = []
-    # Collect unique words from the corpus
-    for sentence in lines:
-        for word in sentence.split():
-            if word not in unique_words:
-                unique_words.append(word)
-
-    unique_words = sorted(unique_words)
-
-    """
-    Add the stop icon to unique words.
-    This will allow our RNN to learn stopping of sentences.
-    In addition, it will allow us to have a fixed size
-    for our sentence tensors.
-    """
-    unique_words.append('</s>')
-    nof_unique_words = len(unique_words)
-
-    lines_np = np.array(lines)
-    # Calculate the maximum sentence length used in fixing tensor size
-    max_sentence_length = np.max([len(sentence.split()) for sentence in lines_np])
 
     return unique_words, nof_unique_words, max_sentence_length
 

@@ -15,13 +15,9 @@ class LSTM(nn.Module):
                                out_features=vocab_size)
 
     def forward(self, x):
-        d, n, v = x.shape
 
         # RNN returns output and last hidden state
         x, (h, c) = self.lstm(x)
-
-        # Flatten output for feed-forward layer
-        # x = x.view(-1, self.lstm.hidden_size)
 
         # Output layer
         x = self.l_out(x)

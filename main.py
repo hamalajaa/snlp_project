@@ -34,6 +34,7 @@ def main():
     # Construct dataloader
     dataset = utils.ReadLines(data_file)
     loader = torch.utils.data.DataLoader(dataset=dataset, batch_size=16, num_workers=8)
+    # loader = torch.utils.data.DataLoader(tensor, batch_size=hps.batch_size)
 
     # Init model
     model = LSTM(hps, vocab_size)
