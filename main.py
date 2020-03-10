@@ -10,7 +10,9 @@ import utils
 from data_helper import SentenceMapper
 from models import LSTM
 
-data_file = "testdata.txt"
+#data_file = "testdata.txt"
+data_file = "testdata_medium.txt"
+#data_file = "wikipedia2008_en.txt"
 ngram_size = 6
 
 
@@ -24,24 +26,26 @@ def main():
     unique_words, vocab_size, n = utils.create_unique_words(lines)
 
     word_to_idx, idx_to_word = utils.build_index(unique_words)
-    mapper = SentenceMapper(lines, word_to_idx, idx_to_word ,n)
-    mapper.map_sentences_to_tensors()
+    mapper = SentenceMapper(lines, word_to_idx, idx_to_word, n)
 
     # Sentences in tensor format
-    tensor = mapper.map_sentences_to_tensors()
+    #tensor = mapper.map_sentences_to_tensors()
+
+    dataset = utils.file_lines(data_file)
 
     # Construct dataloader
-    loader = torch.utils.data.DataLoader(tensor, batch_size=hps.batch_size)
+    loader = torch.utils.data.DataLoader(dataset=dataset, batch_size=hps.batch_size, num_workers=8)
+    #loader = torch.utils.data.DataLoader(tensor, batch_size=hps.batch_size)
     
     # Init model
     model = LSTM(hps, vocab_size)
 
     print("Dummy tests: ")
-    train_model(hps, idx_to_word, model, loader, loader)
+    train_model(hps, mapper, idx_to_word, model, loader, loader)
     
 
 
-def train_model(hps, idx_to_word, model, train_loader, validation_loader):
+def train_model(hps, mapper, idx_to_word, model, train_loader, validation_loader):
     # Hyper-parameters
     num_epochs = hps.n_epochs
 
@@ -64,6 +68,8 @@ def train_model(hps, idx_to_word, model, train_loader, validation_loader):
         model.train()
 
         for _, data in enumerate(train_loader):
+
+            data = mapper.map_sentences_to_tensors(data)
             
             inputs, targets = utils.inputs_and_targets_from_sequences(data)
             _, target_idx = targets.max(dim=1)
@@ -89,6 +95,8 @@ def train_model(hps, idx_to_word, model, train_loader, validation_loader):
 
         for _, data in enumerate(validation_loader):
             
+            data = mapper.map_sentences_to_tensors(data)
+
             inputs, targets = utils.inputs_and_targets_from_sequences(data)
             _, target_idx = targets.max(dim=1)
             
@@ -113,6 +121,7 @@ def train_model(hps, idx_to_word, model, train_loader, validation_loader):
         # Print loss every 1 epochs
         if i % 1 == 0:
             print(f'Epoch {i}, training loss: {training_loss[-1]}, validation loss: {validation_loss[-1]}')
+
 
     print(inputs.max(dim=2)[1][0,:])
     print(targets.max(dim=2)[1][0,:])

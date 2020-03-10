@@ -1,13 +1,24 @@
 import numpy as np
+import torch
+from itertools import chain
 from data_helper import SentenceMapper
-data_file = "testdata.txt"
-ngram_size = 6
 
 
 def read_file(filename):
     with open(filename, 'r') as file:
         lines = list(map(lambda line: line.strip(), file.readlines()))
     return lines
+
+
+class file_lines(torch.utils.data.Dataset):
+    def __init__(self, filename):
+        self.lines = read_file(filename)
+
+    def __getitem__(self, idx):
+        return self.lines[idx]
+
+    def __len__(self):
+        return len(self.lines)
 
 
 def create_unique_words(lines):
@@ -19,15 +30,13 @@ def create_unique_words(lines):
         nof_unique_words        length of unique words
         max_sentence_length     length of the longest sentence
     """
-    unique_words = []
 
-    # Collect unique words from the corpus
-    for sentence in lines:
-        for word in sentence.split():
-            if word not in unique_words:
-                unique_words.append(word)
+    np_lines = np.array(lines)
+    split = np.char.split(np_lines).tolist()
 
-        unique_words = sorted(unique_words)
+    all_words = list(chain.from_iterable(split))
+
+    unique_words = np.unique(all_words).tolist()
 
     """
     Add the stop icon to unique words.

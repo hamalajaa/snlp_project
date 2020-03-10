@@ -25,12 +25,12 @@ class SentenceMapper():
         self.V = len(word_to_idx.keys())
         self.D = len(sentences)
 
-    def map_sentences_to_tensors(self, padding_character="</s>"):
-        sentences = self.sentences
+    def map_sentences_to_tensors(self, batch, padding_character="</s>"):
+        sentences = batch
         word_to_idx = self.word_to_idx
 
         # tensor size parameters
-        D = self.D
+        D = len(sentences)
         N = self.N
         V = self.V
         
