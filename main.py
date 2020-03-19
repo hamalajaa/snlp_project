@@ -11,10 +11,14 @@ from models import LSTM
 
 from timeit import default_timer as timer
 
-data_file = "testdata_medium.txt"
+data_file = "testdata.txt"
 ngram_size = 6
 
 cuda = torch.cuda.is_available()
+if cuda:
+    device = torch.device("cuda:0")
+else:
+    device = torch.device("cpu")
 
 def main():
     # Init hps
@@ -54,7 +58,7 @@ def train_model(hps, idx_to_word, model, train_loader, validation_loader, mapper
     criterion = nn.CrossEntropyLoss()
 
     if cuda:
-        optimizer = torch.optim.Adam(model.parameters(), lr=0.01).cuda()
+        optimizer = torch.optim.Adam(model.parameters(), lr=0.01)#.cuda()
     else:
         optimizer = torch.optim.Adam(model.parameters(), lr=0.01)
     # optimizer = torch.optim.SGD(model.parameters(), lr=0.1)
@@ -81,6 +85,10 @@ def train_model(hps, idx_to_word, model, train_loader, validation_loader, mapper
             # print("Mapping data to sensor took", (data_map_end - data_map_start))
 
             inputs, targets = utils.inputs_and_targets_from_sequences(data)
+            if cuda:
+                inputs = inputs.cuda()
+                targets = targets.cuda()
+
             _, target_idx = targets.max(dim=1)
 
             # Forward pass
@@ -104,7 +112,7 @@ def train_model(hps, idx_to_word, model, train_loader, validation_loader, mapper
             # print("Backward pass took", (backward_pass_end - backward_pass_start))
 
             # Update loss
-            epoch_training_loss += loss.detach().numpy()
+            epoch_training_loss += loss.detach().cpu().numpy()
 
             train_loop_end = timer()
             print("Mapping data to sensor", (data_map_end - data_map_start))
@@ -123,6 +131,9 @@ def train_model(hps, idx_to_word, model, train_loader, validation_loader, mapper
             data = mapper.map_sentences_to_tensors(data)
 
             inputs, targets = utils.inputs_and_targets_from_sequences(data)
+            if cuda:
+                inputs = inputs.cuda()
+                targets = targets.cuda()
             _, target_idx = targets.max(dim=1)
 
             # Forward pass
@@ -132,12 +143,12 @@ def train_model(hps, idx_to_word, model, train_loader, validation_loader, mapper
             loss = criterion(outputs, target_idx)
 
             # Backward pass
-            optimizer.zero_grad()
-            loss.backward()
+            #optimizer.zero_grad()
+            #loss.backward()
             optimizer.step()
 
             # Update loss
-            epoch_validation_loss += loss.detach().numpy()
+            epoch_validation_loss += loss.detach().cpu().numpy()
 
         # Save loss for plot
         training_loss.append(epoch_training_loss / len(train_loader))
@@ -147,6 +158,7 @@ def train_model(hps, idx_to_word, model, train_loader, validation_loader, mapper
         if i % 1 == 0:
             print(f'Epoch {i}, training loss: {training_loss[-1]}, validation loss: {validation_loss[-1]}')
 
+        
     print(inputs.max(dim=2)[1][0, :])
     print(targets.max(dim=2)[1][0, :])
     print(outputs.max(dim=2)[1][0, :])
@@ -156,13 +168,13 @@ def train_model(hps, idx_to_word, model, train_loader, validation_loader, mapper
     output = outputs.max(dim=2)[1][0, :]
 
     print('\nInput sequence:')
-    print([idx_to_word[c] for c in context.detach().numpy()])
+    print([idx_to_word[c] for c in context.detach().cpu().numpy()])
 
     print('\nTarget sequence:')
-    print([idx_to_word[c] for c in target.detach().numpy()])
+    print([idx_to_word[c] for c in target.detach().cpu().numpy()])
 
     print('\nPredicted sequence:')
-    print([idx_to_word[c] for c in output.detach().numpy()])
+    print([idx_to_word[c] for c in output.detach().cpu().numpy()])
 
 
 def init_hps():

@@ -8,7 +8,7 @@ ngram_size = 6
 
 
 def read_file(filename):
-    with open(filename, 'r') as file:
+    with open(filename, 'r', encoding="utf-8") as file:
         lines = list(map(lambda line: line.strip(), file.readlines()))
     return lines
 
