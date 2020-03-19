@@ -41,7 +41,7 @@ def main():
     # loader = torch.utils.data.DataLoader(tensor, batch_size=hps.batch_size)
 
     # Init model
-    model = LSTM(hps, vocab_size)
+    model = LSTM(hps, vocab_size, int(n))
 
     print("Dummy tests: ")
     train_model(hps, idx_to_word, model, loader, loader, mapper)
@@ -52,13 +52,16 @@ def train_model(hps, idx_to_word, model, train_loader, validation_loader, mapper
     num_epochs = hps.n_epochs
 
     if cuda:
-        model = model.cuda()
+        # model = model.cuda()
+        
+        model = nn.DataParallel(model).cuda()
 
     # Loss function and optimizer
     criterion = nn.CrossEntropyLoss()
 
     if cuda:
         optimizer = torch.optim.Adam(model.parameters(), lr=0.01)#.cuda()
+        criterion = criterion.cuda()
     else:
         optimizer = torch.optim.Adam(model.parameters(), lr=0.01)
     # optimizer = torch.optim.SGD(model.parameters(), lr=0.1)
@@ -68,6 +71,7 @@ def train_model(hps, idx_to_word, model, train_loader, validation_loader, mapper
 
     for i in range(num_epochs):
 
+        epoch_start_time = timer()
         # Track loss
         epoch_training_loss = 0
         epoch_validation_loss = 0
@@ -79,16 +83,18 @@ def train_model(hps, idx_to_word, model, train_loader, validation_loader, mapper
         for _, data in enumerate(train_loader):
             train_loop_start = timer()
             data_map_start = timer()
-            data = mapper.map_sentences_to_tensors(data)
+            data = mapper.map_words_to_tensors(data)
+            #print(data)
             data_map_end = timer()
 
             # print("Mapping data to sensor took", (data_map_end - data_map_start))
 
             inputs, targets = utils.inputs_and_targets_from_sequences(data)
+            cuda_transfer_start = timer()
             if cuda:
                 inputs = inputs.cuda()
                 targets = targets.cuda()
-
+            cuda_transfer_end = timer()
             _, target_idx = targets.max(dim=1)
 
             # Forward pass
@@ -99,6 +105,7 @@ def train_model(hps, idx_to_word, model, train_loader, validation_loader, mapper
 
             # Loss
             loss_start = timer()
+            #print(f"Target index {target_idx} outputs {outputs.shape}")
             loss = criterion(outputs, target_idx)
             loss_end = timer()
             # print("Loss took", (loss_end - loss_start))
@@ -115,7 +122,8 @@ def train_model(hps, idx_to_word, model, train_loader, validation_loader, mapper
             epoch_training_loss += loss.detach().cpu().numpy()
 
             train_loop_end = timer()
-            print("Mapping data to sensor", (data_map_end - data_map_start))
+            print("Mapping data to sensor", (data_map_end - data_map_start), cuda)
+            print("Cuda transfer", (cuda_transfer_end - cuda_transfer_start))
             print("Forward pass", (forward_pass_end - forward_pass_start))
             print("Loss", (loss_end - loss_start))
             print("Backward pass", (backward_pass_end - backward_pass_start))
@@ -128,7 +136,7 @@ def train_model(hps, idx_to_word, model, train_loader, validation_loader, mapper
 
         for _, data in enumerate(validation_loader):
 
-            data = mapper.map_sentences_to_tensors(data)
+            data = mapper.map_words_to_tensors(data)
 
             inputs, targets = utils.inputs_and_targets_from_sequences(data)
             if cuda:
@@ -154,11 +162,13 @@ def train_model(hps, idx_to_word, model, train_loader, validation_loader, mapper
         training_loss.append(epoch_training_loss / len(train_loader))
         validation_loss.append(epoch_validation_loss / len(validation_loader))
 
+
         # Print loss every 1 epochs
         if i % 1 == 0:
             print(f'Epoch {i}, training loss: {training_loss[-1]}, validation loss: {validation_loss[-1]}')
-
-        
+            print(f'Epoch took {timer() - epoch_start_time}s')
+    
+    print(outputs)
     print(inputs.max(dim=2)[1][0, :])
     print(targets.max(dim=2)[1][0, :])
     print(outputs.max(dim=2)[1][0, :])
@@ -186,7 +196,7 @@ def init_hps():
     parser.add_argument("--batch_size", type=int, default=10,
                         help="batch size")
 
-    parser.add_argument("--n_epochs", type=int, default=16,
+    parser.add_argument("--n_epochs", type=int, default=2,
                         help="number of training epochs")
 
     parser.add_argument('-f', '--file',

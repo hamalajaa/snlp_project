@@ -48,7 +48,7 @@ def create_unique_words(lines):
     """
     unique_words.append('</s>')
     nof_unique_words = len(unique_words)
-
+    print("Vocab size", nof_unique_words)
     # Calculate the maximum sentence length used in fixing tensor size
     max_sentence_length = np.max([len(sentence.split()) for sentence in np_lines])
 
@@ -71,7 +71,7 @@ def inputs_and_targets_from_sequences(tensor):
     #       n = length of the longest sentence
     #       v = vocabulary size
 
-    inputs = tensor[:, :-1, :].float()
+    inputs = tensor[:, :-1, :]#.float()
     targets = tensor[:, 1:, :].float()
 
     return inputs, targets
