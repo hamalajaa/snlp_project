@@ -29,8 +29,8 @@ def main():
 
     start = timer()
     unique_words, vocab_size, n = utils.create_unique_words(lines)
-    end = timer()
-    print("Constructing unique words took:", (end - start))
+
+    print("Constructing unique words took:", (timer() - start))
 
     word_to_idx, idx_to_word = utils.build_index(unique_words)
     mapper = SentenceMapper(lines, word_to_idx, idx_to_word, n)
@@ -38,6 +38,7 @@ def main():
     # Construct dataloader
     dataset = utils.ReadLines(data_file)
     loader = torch.utils.data.DataLoader(dataset=dataset, batch_size=16, num_workers=8)
+
     # loader = torch.utils.data.DataLoader(tensor, batch_size=hps.batch_size)
 
     # Init model
@@ -47,21 +48,21 @@ def main():
     train_model(hps, idx_to_word, model, loader, loader, mapper)
 
 
+
 def train_model(hps, idx_to_word, model, train_loader, validation_loader, mapper):
     # Hyper-parameters
     num_epochs = hps.n_epochs
 
     if cuda:
-        model = model.cuda()
+        model = nn.DataParallel(model).cuda()
 
     # Loss function and optimizer
     criterion = nn.CrossEntropyLoss()
 
     if cuda:
-        optimizer = torch.optim.Adam(model.parameters(), lr=0.01)#.cuda()
-    else:
-        optimizer = torch.optim.Adam(model.parameters(), lr=0.01)
-    # optimizer = torch.optim.SGD(model.parameters(), lr=0.1)
+        criterion = criterion.cuda()
+    
+    optimizer = torch.optim.Adam(model.parameters(), lr=0.01)
 
     # Track loss
     training_loss, validation_loss = [], []
@@ -78,48 +79,42 @@ def train_model(hps, idx_to_word, model, train_loader, validation_loader, mapper
 
         for _, data in enumerate(train_loader):
             train_loop_start = timer()
+            
             data_map_start = timer()
-            data = mapper.map_sentences_to_tensors(data)
-            data_map_end = timer()
+            data = mapper.map_sentences_to_indices(data)
 
-            # print("Mapping data to sensor took", (data_map_end - data_map_start))
+            print("Mapping data to tensor took", (timer() - data_map_start))
 
             inputs, targets = utils.inputs_and_targets_from_sequences(data)
             if cuda:
                 inputs = inputs.cuda()
                 targets = targets.cuda()
 
-            _, target_idx = targets.max(dim=1)
-
             # Forward pass
             forward_pass_start = timer()
-            outputs = model(inputs)
-            forward_pass_end = timer()
-            # print("Forward pass took", (forward_pass_end - forward_pass_start))
+            outputs = model(inputs).permute(0, 2, 1)
+
+            print("Forward pass took", (timer() - forward_pass_start))
 
             # Loss
             loss_start = timer()
-            loss = criterion(outputs, target_idx)
-            loss_end = timer()
-            # print("Loss took", (loss_end - loss_start))
+            loss = criterion(outputs, targets)
+
+            print("Loss took", (timer() - loss_start))
 
             # Backward pass
             backward_pass_start = timer()
+
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
-            backward_pass_end = timer()
-            # print("Backward pass took", (backward_pass_end - backward_pass_start))
+
+            print("Backward pass took", (timer() - backward_pass_start))
 
             # Update loss
             epoch_training_loss += loss.detach().cpu().numpy()
 
-            train_loop_end = timer()
-            print("Mapping data to sensor", (data_map_end - data_map_start))
-            print("Forward pass", (forward_pass_end - forward_pass_start))
-            print("Loss", (loss_end - loss_start))
-            print("Backward pass", (backward_pass_end - backward_pass_start))
-            print("Total", (train_loop_end - train_loop_start))
+            print("Total", (timer() - train_loop_start))
             print()
 
         # Validation
@@ -128,24 +123,18 @@ def train_model(hps, idx_to_word, model, train_loader, validation_loader, mapper
 
         for _, data in enumerate(validation_loader):
 
-            data = mapper.map_sentences_to_tensors(data)
+            data = mapper.map_sentences_to_indices(data)
 
             inputs, targets = utils.inputs_and_targets_from_sequences(data)
             if cuda:
                 inputs = inputs.cuda()
                 targets = targets.cuda()
-            _, target_idx = targets.max(dim=1)
 
             # Forward pass
-            outputs = model(inputs)
+            outputs = model(inputs).permute(0, 2, 1)
 
             # Loss
-            loss = criterion(outputs, target_idx)
-
-            # Backward pass
-            #optimizer.zero_grad()
-            #loss.backward()
-            optimizer.step()
+            loss = criterion(outputs, targets)
 
             # Update loss
             epoch_validation_loss += loss.detach().cpu().numpy()
@@ -182,11 +171,14 @@ def init_hps():
 
     parser.add_argument("--lstm_h_dim", type=int, default=200,
                         help="dimension of the hidden layer for lstm")
+    
+    parser.add_argument("--embedding_dim", type=int, default=20,
+                        help="dimension of the embedding")
 
-    parser.add_argument("--batch_size", type=int, default=10,
+    parser.add_argument("--batch_size", type=int, default=16,
                         help="batch size")
 
-    parser.add_argument("--n_epochs", type=int, default=16,
+    parser.add_argument("--n_epochs", type=int, default=20,
                         help="number of training epochs")
 
     parser.add_argument('-f', '--file',

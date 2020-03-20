@@ -66,12 +66,11 @@ def build_index(unique_words):
 
 
 def inputs_and_targets_from_sequences(tensor):
-    # An input tensor of shape [d x n x v] is expected where:
+    # An input tensor of shape [d x n] is expected where:
     #       d = number of sentences
     #       n = length of the longest sentence
-    #       v = vocabulary size
 
-    inputs = tensor[:, :-1, :].float()
-    targets = tensor[:, 1:, :].float()
+    inputs = tensor[:, :-1]
+    targets = tensor[:, 1:]
 
     return inputs, targets

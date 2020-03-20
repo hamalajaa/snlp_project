@@ -27,8 +27,45 @@ class SentenceMapper:
         self.N = N
         self.sentences = sentences
         self.word_to_idx = word_to_idx
+        self.idx_to_word = idx_to_word
         self.V = len(word_to_idx.keys())
         self.D = len(sentences)
+
+
+    def map_sentences_to_indices(self, batch, padding_character="</s>"):
+        sentences = batch
+
+        # tensor size parameters
+        D = len(sentences)
+        N = self.N
+
+        tensor = torch.zeros([D, N], dtype=torch.int64)
+
+        # translates words to their word indices
+        for s_idx, sentence in enumerate(sentences):
+            split_sentence = sentence.split()
+
+            # number of words in this sentence
+            nof_words = len(split_sentence)
+            for w_idx, word in enumerate(split_sentence):
+                # w_id is the index of the current word in the corpus word_to_idx
+                w_id = self.word_to_idx[word]
+
+                # set 1 for 
+                tensor[s_idx, w_idx] = w_id
+
+            # If the sentence length is smaller
+            # than the maximal sentence length,
+            # pad rest of the tensor with padding_character
+            if nof_words < N:
+
+                # index of the stop character in the corpus word_to_idx
+                stop_id = self.word_to_idx[padding_character]
+                for padding_idx in range(nof_words, N):
+                    tensor[s_idx, padding_idx] = stop_id
+
+        return tensor
+
 
     def map_sentences_to_tensors(self, batch, padding_character="</s>"):
         sentences = batch
