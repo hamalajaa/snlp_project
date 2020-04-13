@@ -1,4 +1,3 @@
-import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -9,9 +8,10 @@ import utils
 from data_helper import SentenceMapper
 from models import LSTM
 
-from timeit import default_timer as timer
+import time
 
-data_file = "testdata.txt"
+data_file = "testdata_tiny.txt"
+save_path = "model.pth"
 ngram_size = 6
 
 cuda = torch.cuda.is_available()
@@ -20,33 +20,80 @@ if cuda:
 else:
     device = torch.device("cpu")
 
-def main():
+
+def main(load=False):
     # Init hps
     hps = init_hps()
 
     # Read file
     lines = utils.read_file(data_file)
 
-    start = timer()
+    start = time.time()
     unique_words, vocab_size, n = utils.create_unique_words(lines)
-
-    print("Constructing unique words took:", (timer() - start))
+    print("vocab_size", vocab_size)
+    print("Constructing unique words took:", (time.time() - start))
 
     word_to_idx, idx_to_word = utils.build_index(unique_words)
     mapper = SentenceMapper(lines, word_to_idx, idx_to_word, n)
 
     # Construct dataloader
     dataset = utils.ReadLines(data_file)
-    loader = torch.utils.data.DataLoader(dataset=dataset, batch_size=16, num_workers=8)
+    loader = torch.utils.data.DataLoader(dataset=dataset, batch_size=16, num_workers=8, shuffle=True)
 
     # loader = torch.utils.data.DataLoader(tensor, batch_size=hps.batch_size)
 
     # Init model
-    model = LSTM(hps, vocab_size)
+    if not load:
+        model = LSTM(hps, vocab_size)
+        train_model(hps, idx_to_word, model, loader, loader, mapper)
+    else:
+        model = LSTM(hps, vocab_size)
+        model = nn.DataParallel(model).to(device)
+        model.load_state_dict(torch.load(save_path, map_location=device))
+        model.to(device)
+        model.eval()
 
-    print("Dummy tests: ")
-    train_model(hps, idx_to_word, model, loader, loader, mapper)
+        for _, data in enumerate(loader):
 
+            data = mapper.map_sentences_to_indices(data)
+
+            inputs, targets = utils.inputs_and_targets_from_sequences(data)
+            inputs = inputs.to(device)
+            print("inputs.shape", inputs.shape)
+            print("inputs", inputs)
+            inputs = inputs[0, :].unsqueeze(0)
+            print("inputs.shape", inputs.shape)
+
+            outputs = model(inputs)
+
+            outputs = F.softmax(outputs, dim=2)
+            output = torch.topk(outputs, 1, dim=2)[1]
+
+            output = output.squeeze(2).squeeze(0)
+            original_input = inputs.squeeze(0)
+
+            print(output)
+            print(output.shape)
+
+            print('\nOriginal sequence:')
+            input_sequence = [idx_to_word[c] for c in original_input.detach().cpu().numpy()]
+            print([idx_to_word[c] for c in original_input.detach().cpu().numpy()])
+
+            print('\nPredicted sequence:')
+            predicted_sequence = [idx_to_word[c] for c in output.detach().cpu().numpy()]
+            print([idx_to_word[c] for c in output.detach().cpu().numpy()])
+
+            for i in range(1, len(input_sequence)):
+                words = input_sequence[:i]
+                predicted_next_word = predicted_sequence[i - 1]
+                if predicted_next_word == '</s>':
+                    break
+
+                print(" ".join(words), predicted_next_word)
+
+            break
+
+    return vocab_size, hps
 
 
 def train_model(hps, idx_to_word, model, train_loader, validation_loader, mapper):
@@ -61,13 +108,15 @@ def train_model(hps, idx_to_word, model, train_loader, validation_loader, mapper
 
     if cuda:
         criterion = criterion.cuda()
-    
+
     optimizer = torch.optim.Adam(model.parameters(), lr=0.01)
 
     # Track loss
     training_loss, validation_loss = [], []
 
     for i in range(num_epochs):
+
+        epoch_start = time.time()
 
         # Track loss
         epoch_training_loss = 0
@@ -78,12 +127,8 @@ def train_model(hps, idx_to_word, model, train_loader, validation_loader, mapper
         model.train()
 
         for _, data in enumerate(train_loader):
-            train_loop_start = timer()
-            
-            data_map_start = timer()
-            data = mapper.map_sentences_to_indices(data)
 
-            print("Mapping data to tensor took", (timer() - data_map_start))
+            data = mapper.map_sentences_to_indices(data)
 
             inputs, targets = utils.inputs_and_targets_from_sequences(data)
             if cuda:
@@ -91,31 +136,18 @@ def train_model(hps, idx_to_word, model, train_loader, validation_loader, mapper
                 targets = targets.cuda()
 
             # Forward pass
-            forward_pass_start = timer()
             outputs = model(inputs).permute(0, 2, 1)
 
-            print("Forward pass took", (timer() - forward_pass_start))
-
             # Loss
-            loss_start = timer()
             loss = criterion(outputs, targets)
 
-            print("Loss took", (timer() - loss_start))
-
             # Backward pass
-            backward_pass_start = timer()
-
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
 
-            print("Backward pass took", (timer() - backward_pass_start))
-
             # Update loss
             epoch_training_loss += loss.detach().cpu().numpy()
-
-            print("Total", (timer() - train_loop_start))
-            print()
 
         # Validation
 
@@ -145,25 +177,10 @@ def train_model(hps, idx_to_word, model, train_loader, validation_loader, mapper
 
         # Print loss every 1 epochs
         if i % 1 == 0:
-            print(f'Epoch {i}, training loss: {training_loss[-1]}, validation loss: {validation_loss[-1]}')
+            print(
+                f'Epoch {i} took {time.time() - epoch_start}s, training loss: {training_loss[-1]}, validation loss: {validation_loss[-1]}')
 
-        
-    print(inputs.max(dim=2)[1][0, :])
-    print(targets.max(dim=2)[1][0, :])
-    print(outputs.max(dim=2)[1][0, :])
-
-    context = inputs.max(dim=2)[1][0, :]
-    target = targets.max(dim=2)[1][0, :]
-    output = outputs.max(dim=2)[1][0, :]
-
-    print('\nInput sequence:')
-    print([idx_to_word[c] for c in context.detach().cpu().numpy()])
-
-    print('\nTarget sequence:')
-    print([idx_to_word[c] for c in target.detach().cpu().numpy()])
-
-    print('\nPredicted sequence:')
-    print([idx_to_word[c] for c in output.detach().cpu().numpy()])
+    torch.save(model.state_dict(), save_path)
 
 
 def init_hps():
@@ -171,7 +188,7 @@ def init_hps():
 
     parser.add_argument("--lstm_h_dim", type=int, default=200,
                         help="dimension of the hidden layer for lstm")
-    
+
     parser.add_argument("--embedding_dim", type=int, default=20,
                         help="dimension of the embedding")
 
@@ -190,4 +207,4 @@ def init_hps():
 
 
 if __name__ == "__main__":
-    main()
+    main(True)
