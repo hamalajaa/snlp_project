@@ -8,10 +8,12 @@ import utils
 from data_helper import SentenceMapper
 from models import LSTM
 
+from itertools import takewhile
+
 import time
 
-data_file = "testdata_tiny.txt"
-save_path = "model.pth"
+data_file = "testdata_medium.txt"
+save_path = "model_20k.pth"
 ngram_size = 6
 
 cuda = torch.cuda.is_available()
@@ -77,17 +79,23 @@ def main(load=False):
 
             print('\nOriginal sequence:')
             input_sequence = [idx_to_word[c] for c in original_input.detach().cpu().numpy()]
-            print([idx_to_word[c] for c in original_input.detach().cpu().numpy()])
+            # input_sequence = list(takewhile(lambda x: x != "</s>", input_sequence))
+            print(input_sequence)
 
             print('\nPredicted sequence:')
             predicted_sequence = [idx_to_word[c] for c in output.detach().cpu().numpy()]
-            print([idx_to_word[c] for c in output.detach().cpu().numpy()])
+            # predicted_sequence = list(takewhile(lambda x: x != "</s>", predicted_sequence))
+            print(predicted_sequence)
 
-            for i in range(1, len(input_sequence)):
+            prev_word = ""
+            for i in range(1, len(predicted_sequence)):
                 words = input_sequence[:i]
                 predicted_next_word = predicted_sequence[i - 1]
-                if predicted_next_word == '</s>':
+
+                if predicted_next_word == '</s>' and (prev_word == '</s>' or input_sequence[i] == '</s>'):
                     break
+
+                prev_word = predicted_next_word
 
                 print(" ".join(words), predicted_next_word)
 
