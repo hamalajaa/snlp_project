@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import fasttext
 
 import argparse
 
@@ -12,7 +13,7 @@ from itertools import takewhile
 
 import time
 
-data_file = "testdata_medium.txt"
+data_file = "testdata.txt"
 test_data_file = "actual_testdata_medium.txt"
 save_path = "model_20k.pth"
 ngram_size = 6
@@ -50,10 +51,13 @@ def main(load=False):
 
     # loader = torch.utils.data.DataLoader(tensor, batch_size=hps.batch_size)
 
+    embedding = fasttext.train_unsupervised(data_file, model='cbow', dim=hps.embedding_dim)
+
+
     # Init model
     if not load:
         model = LSTM(hps, vocab_size)
-        train_model(hps, idx_to_word, model, loader, loader, mapper)
+        train_model(hps, idx_to_word, model, loader, loader, mapper, embedding)
     else:
         model = LSTM(hps, vocab_size)
         model = nn.DataParallel(model).to(device)
@@ -110,7 +114,7 @@ def main(load=False):
     return vocab_size, hps
 
 
-def train_model(hps, idx_to_word, model, train_loader, validation_loader, mapper):
+def train_model(hps, idx_to_word, model, train_loader, validation_loader, mapper, embedding):
     # Hyper-parameters
     num_epochs = hps.n_epochs
 
@@ -142,7 +146,8 @@ def train_model(hps, idx_to_word, model, train_loader, validation_loader, mapper
 
         for _, data in enumerate(train_loader):
 
-            data = mapper.map_sentences_to_indices(data)
+            # ":-D"
+            data = mapper.map_sentences_to_padded_embedding(data, embedding=embedding)
 
             inputs, targets = utils.inputs_and_targets_from_sequences(data)
             if cuda:
@@ -150,6 +155,7 @@ def train_model(hps, idx_to_word, model, train_loader, validation_loader, mapper
                 targets = targets.cuda()
 
             # Forward pass
+            
             outputs = model(inputs).permute(0, 2, 1)
 
             # Loss
@@ -169,7 +175,7 @@ def train_model(hps, idx_to_word, model, train_loader, validation_loader, mapper
 
         for _, data in enumerate(validation_loader):
 
-            data = mapper.map_sentences_to_indices(data)
+            data = mapper.map_sentences_to_padded_embedding(data, embedding=embedding)
 
             inputs, targets = utils.inputs_and_targets_from_sequences(data)
             if cuda:
