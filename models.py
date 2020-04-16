@@ -8,7 +8,7 @@ class LSTM(nn.Module):
         super(LSTM, self).__init__()
 
         # Embedding layer
-        self.embeddings = nn.Embedding(vocab_size, hps.embedding_dim)
+        # self.embeddings = nn.Embedding(vocab_size, hps.embedding_dim)
 
         # Recurrent layer
         self.lstm = nn.LSTM(hps.embedding_dim, hps.lstm_h_dim, 2)
@@ -21,7 +21,7 @@ class LSTM(nn.Module):
 
         # RNN returns output and last hidden state
 
-        x = self.embeddings(x)
+        # x = self.embeddings(x)
 
         x, (h, c) = self.lstm(x)
 

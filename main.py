@@ -14,8 +14,8 @@ from itertools import takewhile
 import time
 
 data_file = "testdata.txt"
-test_data_file = "actual_testdata_medium.txt"
-save_path = "model_20k.pth"
+test_data_file = "testdata.txt" #"actual_testdata_medium.txt"
+save_path = "model_0.2k.pth"
 ngram_size = 6
 
 cuda = torch.cuda.is_available()
@@ -53,7 +53,6 @@ def main(load=False):
 
     embedding = fasttext.train_unsupervised(data_file, model='cbow', dim=hps.embedding_dim)
 
-
     # Init model
     if not load:
         model = LSTM(hps, vocab_size)
@@ -67,9 +66,12 @@ def main(load=False):
 
         for _, data in enumerate(loader):
 
-            data = mapper.map_sentences_to_indices(data)
+            padded_data = mapper.pad_sentences(data)
 
-            inputs, targets = utils.inputs_and_targets_from_sequences(data)
+            input_sequences, targets = utils.inputs_and_targets_from_sequences(padded_data)
+
+            inputs = mapper.map_sentences_to_padded_embedding(input_sequences, embedding=embedding,
+                                                              embedding_size=hps.embedding_dim)
             inputs = inputs.to(device)
             print("inputs.shape", inputs.shape)
             print("inputs", inputs)
@@ -88,7 +90,7 @@ def main(load=False):
             print(output.shape)
 
             print('\nOriginal sequence:')
-            input_sequence = [idx_to_word[c] for c in original_input.detach().cpu().numpy()]
+            input_sequence = input_sequences#[idx_to_word[c] for c in original_input.detach().cpu().numpy()]
             # input_sequence = list(takewhile(lambda x: x != "</s>", input_sequence))
             print(input_sequence)
 
@@ -147,9 +149,15 @@ def train_model(hps, idx_to_word, model, train_loader, validation_loader, mapper
         for _, data in enumerate(train_loader):
 
             # ":-D"
-            data = mapper.map_sentences_to_padded_embedding(data, embedding=embedding)
 
-            inputs, targets = utils.inputs_and_targets_from_sequences(data)
+            padded_data = mapper.pad_sentences(data)
+
+            inputs, targets = utils.inputs_and_targets_from_sequences(padded_data)
+
+            inputs = mapper.map_sentences_to_padded_embedding(inputs, embedding=embedding, embedding_size=hps.embedding_dim)
+
+            targets = mapper.map_words_to_indices(targets)
+
             if cuda:
                 inputs = inputs.cuda()
                 targets = targets.cuda()
@@ -175,9 +183,14 @@ def train_model(hps, idx_to_word, model, train_loader, validation_loader, mapper
 
         for _, data in enumerate(validation_loader):
 
-            data = mapper.map_sentences_to_padded_embedding(data, embedding=embedding)
+            # ":-D"
 
-            inputs, targets = utils.inputs_and_targets_from_sequences(data)
+            padded_data = mapper.pad_sentences(data)
+
+            inputs, targets = utils.inputs_and_targets_from_sequences(padded_data)
+            inputs = mapper.map_sentences_to_padded_embedding(inputs, embedding=embedding,embedding_size=hps.embedding_dim)
+            targets = mapper.map_words_to_indices(targets)
+
             if cuda:
                 inputs = inputs.cuda()
                 targets = targets.cuda()
@@ -209,7 +222,7 @@ def init_hps():
     parser.add_argument("--lstm_h_dim", type=int, default=200,
                         help="dimension of the hidden layer for lstm")
 
-    parser.add_argument("--embedding_dim", type=int, default=20,
+    parser.add_argument("--embedding_dim", type=int, default=100,
                         help="dimension of the embedding")
 
     parser.add_argument("--batch_size", type=int, default=16,
