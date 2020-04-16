@@ -13,6 +13,7 @@ from itertools import takewhile
 import time
 
 data_file = "testdata_medium.txt"
+test_data_file = "actual_testdata_medium.txt"
 save_path = "model_20k.pth"
 ngram_size = 6
 
@@ -28,7 +29,12 @@ def main(load=False):
     hps = init_hps()
 
     # Read file
-    lines = utils.read_file(data_file)
+    if load:
+        print("Loading file", test_data_file, "for testing")
+        lines = utils.read_file(test_data_file)
+    else:
+        print("Using file", data_file, "for training")
+        lines = utils.read_file(data_file)
 
     start = time.time()
     unique_words, vocab_size, n = utils.create_unique_words(lines)
