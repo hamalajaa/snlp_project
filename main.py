@@ -5,6 +5,8 @@ import fasttext
 
 import argparse
 
+import pandas as pd
+
 import utils
 from data_helper import SentenceMapper
 from models import LSTM
@@ -15,7 +17,8 @@ import time
 
 data_file = "testdata.txt"
 test_data_file = "testdata.txt" #"actual_testdata_medium.txt"
-save_path = "model_0.2k.pth"
+save_path = "model_20k.pth"
+perplexity_save_path = "model_20k.pth"
 ngram_size = 6
 
 cuda = torch.cuda.is_available()
@@ -55,9 +58,11 @@ def main(load=False):
 
     # Init model
     if not load:
+        print("Training...")
         model = LSTM(hps, vocab_size)
         train_model(hps, idx_to_word, model, loader, loader, mapper, embedding)
     else:
+        print("Loading model...")
         model = LSTM(hps, vocab_size)
         model = nn.DataParallel(model).to(device)
         model.load_state_dict(torch.load(save_path, map_location=device))
@@ -128,11 +133,17 @@ def train_model(hps, idx_to_word, model, train_loader, validation_loader, mapper
 
     if cuda:
         criterion = criterion.cuda()
+    
+    print(device, cuda)
 
     optimizer = torch.optim.Adam(model.parameters(), lr=0.01)
 
     # Track loss
     training_loss, validation_loss = [], []
+
+    P = pd.DataFrame(
+        {'epoch':list(range(num_epochs)), 'model': save_path, 'perplexity': [0]*num_epochs}
+        )
 
     for i in range(num_epochs):
 
@@ -145,6 +156,8 @@ def train_model(hps, idx_to_word, model, train_loader, validation_loader, mapper
         # Training
 
         model.train()
+
+        perplexities = []
 
         for _, data in enumerate(train_loader):
 
@@ -169,6 +182,9 @@ def train_model(hps, idx_to_word, model, train_loader, validation_loader, mapper
             # Loss
             loss = criterion(outputs, targets)
 
+            perplexity = torch.exp(loss)
+            perplexities.append(perplexity.item())
+            print(perplexity.item())
             # Backward pass
             optimizer.zero_grad()
             loss.backward()
@@ -178,6 +194,9 @@ def train_model(hps, idx_to_word, model, train_loader, validation_loader, mapper
             epoch_training_loss += loss.detach().cpu().numpy()
 
         # Validation
+
+        P.iloc[i, 2] = sum(perplexities) / len(perplexities)
+        print(P)
 
         model.eval()
 
@@ -214,6 +233,7 @@ def train_model(hps, idx_to_word, model, train_loader, validation_loader, mapper
                 f'Epoch {i} took {time.time() - epoch_start}s, training loss: {training_loss[-1]}, validation loss: {validation_loss[-1]}')
 
     torch.save(model.state_dict(), save_path)
+    P.to_csv(perplexity_save_path, index=False, header=True)
 
 
 def init_hps():
@@ -240,4 +260,4 @@ def init_hps():
 
 
 if __name__ == "__main__":
-    main(True)
+    main(False)
