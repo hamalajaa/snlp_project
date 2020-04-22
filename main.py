@@ -4,6 +4,7 @@ import torch.nn.functional as F
 import fasttext
 import json
 import pickle
+import numpy as np
 
 import argparse
 
@@ -113,6 +114,7 @@ def main(load=False):
         model.to(device)
         model.eval()
 
+        counter = 0
         for _, data in enumerate(loader):
 
             padded_data = mapper.pad_sentences(data)
@@ -126,10 +128,18 @@ def main(load=False):
 
             outputs = model(inputs)
 
-            outputs = F.softmax(outputs, dim=2)
-            output = torch.topk(outputs, 1, dim=2)[1]
+            outputs = F.softmax(outputs, dim=2).detach().cpu().numpy()
+            #output_values, output_indices = torch.topk(outputs, 10, dim=2)
+            outputs = outputs.squeeze(0)
 
-            output = output.squeeze(2).squeeze(0)
+            outs = []
+            idxs = np.array(list(range(vocab_size)))
+            for i in range(outputs.shape[0]):
+                
+                outs.append(np.random.choice(idxs, p=np.array(outputs[i,:])))
+            output = torch.tensor(outs)
+                
+            print("output", output)
             original_input = inputs.squeeze(0)
 
             input_sequence = input_sequences
@@ -149,9 +159,14 @@ def main(load=False):
 
                 prev_word = predicted_next_word
 
-                print(" ".join(list(words)), predicted_next_word)
+                print(" ".join(list(words)), "["+predicted_next_word+"]")
 
-            break
+            counter += 1
+            
+            if counter > 10:
+                break
+            else:
+                print("Moving on to next prediction....\n")
 
     return vocab_size, hps
 
