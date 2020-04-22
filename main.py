@@ -73,10 +73,10 @@ def main(load=False):
             inputs = mapper.map_sentences_to_padded_embedding(input_sequences, embedding=embedding,
                                                               embedding_size=hps.embedding_dim)
             inputs = inputs.to(device)
-            print("inputs.shape", inputs.shape)
-            print("inputs", inputs)
+            #print("inputs.shape", inputs.shape)
+            #print("inputs", inputs)
             inputs = inputs[0, :].unsqueeze(0)
-            print("inputs.shape", inputs.shape)
+            #print("inputs.shape", inputs.shape)
 
             outputs = model(inputs)
 
@@ -86,10 +86,10 @@ def main(load=False):
             output = output.squeeze(2).squeeze(0)
             original_input = inputs.squeeze(0)
 
-            print(output)
-            print(output.shape)
+            #print(output)
+            #print(output.shape)
 
-            print('\nOriginal sequence:')
+            #print('\nOriginal sequence:')
             input_sequence = input_sequences#[idx_to_word[c] for c in original_input.detach().cpu().numpy()]
             # input_sequence = list(takewhile(lambda x: x != "</s>", input_sequence))
             print(input_sequence)
@@ -101,15 +101,15 @@ def main(load=False):
 
             prev_word = ""
             for i in range(1, len(predicted_sequence)):
-                words = input_sequence[:i]
+                words = input_sequence[0][:i]
                 predicted_next_word = predicted_sequence[i - 1]
 
-                if predicted_next_word == '</s>' and (prev_word == '</s>' or input_sequence[i] == '</s>'):
+                if predicted_next_word == '</s>' and (prev_word == '</s>' or input_sequence[0][i] == '</s>'):
                     break
 
                 prev_word = predicted_next_word
 
-                print(" ".join(words), predicted_next_word)
+                print(" ".join(list(words)), predicted_next_word)
 
             break
 
