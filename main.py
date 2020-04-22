@@ -2,6 +2,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import fasttext
+import json
+import pickle
 
 import argparse
 
@@ -14,8 +16,14 @@ from models import LSTM
 import time
 
 data_file_size = 1000
-train_data_file = "testdata_small.txt"
-test_data_file = "testdata_small.txt"
+train_data_file = "testdata_1000.txt"
+test_data_file = "data/actual_testdata_medium.txt"
+model_load_path = "results/model_1.0k_600_500.pth"
+idx_to_word_path = "results/idx_to_word.json"
+vocab_info_load_path = "vocab_info_1.0k_600_500.json"
+
+embedding_model_save_path = "data/embedding.bin"
+
 # model_save_path = "model_20k.pth"
 # perplexity_save_path = "model_20k.pth"
 
@@ -26,6 +34,10 @@ def perplexity_save_path(data_file_size, lstm_h_dim, embedding_dim):
 
 def model_save_path(data_file_size, lstm_h_dim, embedding_dim):
     return "model_" + str(data_file_size / 1000) + "k_" + str(lstm_h_dim) + "_" + str(embedding_dim) + ".pth"
+
+
+def vocab_info_save_path(data_file_size, lstm_h_dim, embedding_dim):
+    return "vocab_info_" + str(data_file_size / 1000) + "k_" + str(lstm_h_dim) + "_" + str(embedding_dim) + ".json"
 
 
 cuda = torch.cuda.is_available()
@@ -55,26 +67,49 @@ def main(load=False):
     print("vocab_size", vocab_size)
     print("Constructing unique words took:", (time.time() - start))
 
-    word_to_idx, idx_to_word = utils.build_index(unique_words)
-    mapper = SentenceMapper(lines, word_to_idx, idx_to_word, n)
-
+ 
     # Construct dataloader
     dataset = utils.ReadLines(train_data_file)
     loader = torch.utils.data.DataLoader(dataset=dataset, batch_size=16, num_workers=8, shuffle=True)
 
-    embedding = fasttext.train_unsupervised(train_data_file, model='cbow', dim=hps.embedding_dim)
 
     # Init model
     if not load:
+
+        word_to_idx, idx_to_word = utils.build_index(unique_words)
+        mapper = SentenceMapper(lines, word_to_idx, idx_to_word, n)
+
+        vocab_info = {'idx_to_word':idx_to_word, 'word_to_idx': word_to_idx, 'vocab_size':vocab_size}
+    
+        with open(vocab_info_save_path(data_file_size, hps.lstm_h_dim, hps.embedding_dim), 'wb') as f:
+            pickle.dump(vocab_info, f, protocol=pickle.HIGHEST_PROTOCOL)
+
+        embedding = fasttext.train_unsupervised(train_data_file, model='cbow', dim=hps.embedding_dim)
+        embedding.save_model(embedding_model_save_path)
+        
         print("Training...")
         model = LSTM(hps, vocab_size)
         train_model(hps, idx_to_word, model, loader, loader, mapper, embedding)
     else:
+
+        with open(vocab_info_load_path,'rb') as f:
+            vocab_info = pickle.load(f, encoding='utf-8')
+        
+        idx_to_word = vocab_info['idx_to_word']
+        word_to_idx = vocab_info['word_to_idx']
+        vocab_size = vocab_info['vocab_size']
+
+        mapper = SentenceMapper(lines, word_to_idx, idx_to_word, n)
+
+        embedding = fasttext.load_model(embedding_model_save_path)
+
         print("Loading model...")
         model = LSTM(hps, vocab_size)
         model = nn.DataParallel(model).to(device)
+
+
         model.load_state_dict(
-            torch.load(model_save_path(data_file_size, hps.lstm_h_dim, hps.embedding_dim), map_location=device))
+            torch.load(model_load_path, map_location=device))
         model.to(device)
         model.eval()
 
@@ -245,7 +280,7 @@ def init_hps():
     parser.add_argument("--lstm_h_dim", type=int, default=600,
                         help="dimension of the hidden layer for lstm")
 
-    parser.add_argument("--embedding_dim", type=int, default=200,
+    parser.add_argument("--embedding_dim", type=int, default=500,
                         help="dimension of the embedding")
 
     parser.add_argument("--batch_size", type=int, default=16,
@@ -263,4 +298,4 @@ def init_hps():
 
 
 if __name__ == "__main__":
-    main(False)
+    main(True)
