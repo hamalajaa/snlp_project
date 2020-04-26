@@ -15,28 +15,58 @@ from data_helper import SentenceMapper
 from models import LSTM
 
 import time
+import os
 
 data_file_size = 1000
-data_file = "testdata/testdata_1000.txt"
+data_file = "testdata/testdata_200.txt"
 
-model_load_path = "model_1.0k_600_100.pth"
-vocab_info_load_path = "vocab_info_1.0k_600_100.json"
+model_load_path = "model_0.2k_600_100.pth"
+vocab_info_load_path = "vocab_info_0.2k_600_100.json"
+
+
+def createPath(filePath):
+    dir = os.path.dirname(filePath)
+    # create directory if it does not exist
+    if not os.path.exists(dir):
+        os.makedirs(dir)
 
 
 def perplexity_save_path(data_file_size, lstm_h_dim, embedding_dim):
-    return "perplexity_" + str(data_file_size / 1000) + "k_" + str(lstm_h_dim) + "_" + str(embedding_dim) + ".csv"
+    path = "./results/" + str(data_file_size / 1000) + "k_" + str(lstm_h_dim) + "_" + str(
+        embedding_dim) + "/perplexity.csv"
+    createPath(path)
+
+    return path
+
+
+def perplexity_test_save_path(data_file_size, lstm_h_dim, embedding_dim):
+    path = "./results/" + str(data_file_size / 1000) + "k_" + str(lstm_h_dim) + "_" + str(
+        embedding_dim) + "/perplexity.data"
+    createPath(path)
+
+    return path
 
 
 def model_save_path(data_file_size, lstm_h_dim, embedding_dim):
-    return "model_" + str(data_file_size / 1000) + "k_" + str(lstm_h_dim) + "_" + str(embedding_dim) + ".pth"
+    path = "./results/" + str(data_file_size / 1000) + "k_" + str(lstm_h_dim) + "_" + str(embedding_dim) + "/model.pth"
+    createPath(path)
+
+    return path
 
 
 def vocab_info_save_path(data_file_size, lstm_h_dim, embedding_dim):
-    return "vocab_info_" + str(data_file_size / 1000) + "k_" + str(lstm_h_dim) + "_" + str(embedding_dim) + ".json"
+    path = "./results/" + str(data_file_size / 1000) + "k_" + str(lstm_h_dim) + "_" + str(embedding_dim) + "/vocab.json"
+    createPath(path)
+
+    return path
 
 
-def embedding_model_save_path(data_file_size, embedding_dim):
-    return "embedding_" + str(data_file_size / 1000) + "k_" + str(embedding_dim) + ".bin"
+def embedding_model_save_path(data_file_size, lstm_h_dim, embedding_dim):
+    path = "./results/" + str(data_file_size / 1000) + "k_" + str(lstm_h_dim) + "_" + str(
+        embedding_dim) + "/embedding.bin"
+    createPath(path)
+
+    return path
 
 
 cuda = torch.cuda.is_available()
@@ -76,7 +106,8 @@ def main(load=False):
     test_set_len = int(len(dataset) * 0.2)
     validation_set_len = int(len(dataset) * 0.2)
 
-    train_set, test_set, validation_set = torch.utils.data.random_split(dataset, [train_set_len, test_set_len, validation_set_len])
+    train_set, test_set, validation_set = torch.utils.data.random_split(dataset, [train_set_len, test_set_len,
+                                                                                  validation_set_len])
 
     train_loader = torch.utils.data.DataLoader(dataset=train_set, batch_size=16, num_workers=8, shuffle=True)
     test_loader = torch.utils.data.DataLoader(dataset=test_set, batch_size=16, num_workers=8, shuffle=True)
@@ -94,7 +125,7 @@ def main(load=False):
             pickle.dump(vocab_info, f, protocol=pickle.HIGHEST_PROTOCOL)
 
         embedding = fasttext.train_unsupervised(data_file, model='cbow', dim=hps.embedding_dim)
-        embedding.save_model(embedding_model_save_path(data_file_size, hps.embedding_dim))
+        embedding.save_model(embedding_model_save_path(data_file_size, hps.lstm_h_dim, hps.embedding_dim))
 
         print("Training...")
         model = LSTM(hps, vocab_size)
@@ -110,7 +141,7 @@ def main(load=False):
 
         mapper = SentenceMapper(lines, word_to_idx, idx_to_word, n)
 
-        embedding = fasttext.load_model(embedding_model_save_path(data_file_size, hps.embedding_dim))
+        embedding = fasttext.load_model(embedding_model_save_path(data_file_size, hps.lstm_h_dim, hps.embedding_dim))
 
         print("Loading model...")
         model = LSTM(hps, vocab_size)
@@ -148,7 +179,7 @@ def main(load=False):
 
             topk = torch.topk(topk, 1, dim=1)[1].squeeze(1)
 
-            print(topk.shape)
+            # print(topk.shape)
 
             outputs = F.softmax(outputs, dim=2)[0, :, :].detach().cpu().numpy()
 
@@ -191,6 +222,13 @@ def main(load=False):
                 break
             else:
                 print("Moving on to next prediction....\n")
+
+        print(perplexities)
+        mean_perplexity = np.mean(perplexities)
+
+        print(f'Perplexity: {mean_perplexity}')
+        with open(perplexity_test_save_path(data_file_size, hps.lstm_h_dim, hps.embedding_dim), 'a') as f:
+            f.write(str(mean_perplexity) + "\n")
 
     return vocab_size, hps
 
@@ -272,7 +310,7 @@ def train_model(hps, idx_to_word, model, train_loader, validation_loader, mapper
         # Validation
 
         P.iloc[i, 2] = sum(perplexities) / len(perplexities)
-        #print(P)
+        # print(P)
 
         model.eval()
 
@@ -337,4 +375,4 @@ def init_hps():
 
 
 if __name__ == "__main__":
-    main(False)
+    main(True)
