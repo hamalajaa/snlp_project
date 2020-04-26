@@ -18,7 +18,7 @@ import time
 import os
 
 data_file_size = 1000
-data_file = "testdata/testdata_20000.txt"
+data_file = "testdata/testdata_50000.txt"
 
 model_load_path = "model_0.2k_600_100.pth"
 vocab_info_load_path = "vocab_info_0.2k_600_100.json"
@@ -101,6 +101,8 @@ def main(load=False):
 
     # Construct dataloader
     dataset = utils.ReadLines(data_file)
+    
+    print("data set length:", len(dataset))
 
     train_set_len = int(len(dataset) * 0.6)
     test_set_len = int(len(dataset) * 0.2)
