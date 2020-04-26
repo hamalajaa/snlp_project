@@ -216,12 +216,7 @@ def main(load=False):
 
                 print(" ".join(list(words)), "[" + predicted_next_word + "|" + sampled_next_word + "]")
 
-            counter += 1
-
-            if counter > 10:
-                break
-            else:
-                print("Moving on to next prediction....\n")
+            print("Moving on to next prediction....\n")
 
         print(perplexities)
         mean_perplexity = np.mean(perplexities)
