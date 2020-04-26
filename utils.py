@@ -8,7 +8,7 @@ ngram_size = 6
 
 
 def preprocess_lines(lines):
-    return list(filter(lambda x: len(x) > 2, lines))
+    return list(filter(lambda x: len(x) > 3 and len(x) < 50, lines))
 
 
 def read_file(filename):
