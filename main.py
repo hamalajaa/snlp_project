@@ -248,7 +248,7 @@ def train_model(hps, idx_to_word, model, train_loader, validation_loader, mapper
 
     print(device, cuda)
 
-    optimizer = torch.optim.Adam(model.parameters(), lr=0.01)
+    optimizer = torch.optim.Adam(model.parameters(), lr=0.001, betas=(0.5, 0.999))
 
     # Track loss
     training_loss, validation_loss = [], []
