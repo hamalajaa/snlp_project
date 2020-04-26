@@ -17,16 +17,10 @@ from models import LSTM
 import time
 
 data_file_size = 1000
-train_data_file = "testdata_1000.txt"
-test_data_file = "data/actual_testdata_medium.txt"
-model_load_path = "results/model_1.0k_600_500.pth"
-idx_to_word_path = "results/idx_to_word.json"
-vocab_info_load_path = "vocab_info_1.0k_600_500.json"
+data_file = "testdata/testdata_1000.txt"
 
-embedding_model_save_path = "data/embedding.bin"
-
-# model_save_path = "model_20k.pth"
-# perplexity_save_path = "model_20k.pth"
+model_load_path = "model_1.0k_600_100.pth"
+vocab_info_load_path = "vocab_info_1.0k_600_100.json"
 
 
 def perplexity_save_path(data_file_size, lstm_h_dim, embedding_dim):
@@ -41,6 +35,10 @@ def vocab_info_save_path(data_file_size, lstm_h_dim, embedding_dim):
     return "vocab_info_" + str(data_file_size / 1000) + "k_" + str(lstm_h_dim) + "_" + str(embedding_dim) + ".json"
 
 
+def embedding_model_save_path(data_file_size, embedding_dim):
+    return "embedding_" + str(data_file_size / 1000) + "k_" + str(embedding_dim) + ".bin"
+
+
 cuda = torch.cuda.is_available()
 if cuda:
     device = torch.device("cuda:0")
@@ -52,27 +50,37 @@ def main(load=False):
     # Init hps
     hps = init_hps()
 
+    criterion = nn.CrossEntropyLoss()
+
     # Read file
     if load:
-        print("Loading file", test_data_file, "for testing")
-        lines = utils.read_file(test_data_file)
+        print("Loading file", data_file, "for testing")
     else:
-        print("Using file", train_data_file, "for training")
-        lines = utils.read_file(train_data_file)
+        print("Using file", data_file, "for training")
+
+    lines = utils.read_file(data_file)
 
     global data_file_size
     data_file_size = len(lines)
 
     start = time.time()
     unique_words, vocab_size, n = utils.create_unique_words(lines)
+
     print("vocab_size", vocab_size)
     print("Constructing unique words took:", (time.time() - start))
 
- 
     # Construct dataloader
-    dataset = utils.ReadLines(train_data_file)
-    loader = torch.utils.data.DataLoader(dataset=dataset, batch_size=16, num_workers=8, shuffle=True)
+    dataset = utils.ReadLines(data_file)
 
+    train_set_len = int(len(dataset) * 0.6)
+    test_set_len = int(len(dataset) * 0.2)
+    validation_set_len = int(len(dataset) * 0.2)
+
+    train_set, test_set, validation_set = torch.utils.data.random_split(dataset, [train_set_len, test_set_len, validation_set_len])
+
+    train_loader = torch.utils.data.DataLoader(dataset=train_set, batch_size=16, num_workers=8, shuffle=True)
+    test_loader = torch.utils.data.DataLoader(dataset=test_set, batch_size=16, num_workers=8, shuffle=True)
+    validation_loader = torch.utils.data.DataLoader(dataset=validation_set, batch_size=16, num_workers=8, shuffle=True)
 
     # Init model
     if not load:
@@ -80,34 +88,33 @@ def main(load=False):
         word_to_idx, idx_to_word = utils.build_index(unique_words)
         mapper = SentenceMapper(lines, word_to_idx, idx_to_word, n)
 
-        vocab_info = {'idx_to_word':idx_to_word, 'word_to_idx': word_to_idx, 'vocab_size':vocab_size}
-    
+        vocab_info = {'idx_to_word': idx_to_word, 'word_to_idx': word_to_idx, 'vocab_size': vocab_size}
+
         with open(vocab_info_save_path(data_file_size, hps.lstm_h_dim, hps.embedding_dim), 'wb') as f:
             pickle.dump(vocab_info, f, protocol=pickle.HIGHEST_PROTOCOL)
 
-        embedding = fasttext.train_unsupervised(train_data_file, model='cbow', dim=hps.embedding_dim)
-        embedding.save_model(embedding_model_save_path)
-        
+        embedding = fasttext.train_unsupervised(data_file, model='cbow', dim=hps.embedding_dim)
+        embedding.save_model(embedding_model_save_path(data_file_size, hps.embedding_dim))
+
         print("Training...")
         model = LSTM(hps, vocab_size)
-        train_model(hps, idx_to_word, model, loader, loader, mapper, embedding)
+        train_model(hps, idx_to_word, model, train_loader, validation_loader, mapper, embedding)
     else:
 
-        with open(vocab_info_load_path,'rb') as f:
+        with open(vocab_info_load_path, 'rb') as f:
             vocab_info = pickle.load(f, encoding='utf-8')
-        
+
         idx_to_word = vocab_info['idx_to_word']
         word_to_idx = vocab_info['word_to_idx']
         vocab_size = vocab_info['vocab_size']
 
         mapper = SentenceMapper(lines, word_to_idx, idx_to_word, n)
 
-        embedding = fasttext.load_model(embedding_model_save_path)
+        embedding = fasttext.load_model(embedding_model_save_path(data_file_size, hps.embedding_dim))
 
         print("Loading model...")
         model = LSTM(hps, vocab_size)
         model = nn.DataParallel(model).to(device)
-
 
         model.load_state_dict(
             torch.load(model_load_path, map_location=device))
@@ -115,54 +122,71 @@ def main(load=False):
         model.eval()
 
         counter = 0
-        for _, data in enumerate(loader):
+
+        perplexities = []
+
+        for _, data in enumerate(test_loader):
 
             padded_data = mapper.pad_sentences(data)
 
-            input_sequences, targets = utils.inputs_and_targets_from_sequences(padded_data)
-
-            inputs = mapper.map_sentences_to_padded_embedding(input_sequences, embedding=embedding,
+            og_inputs, targets = utils.inputs_and_targets_from_sequences(padded_data)
+            inputs = mapper.map_sentences_to_padded_embedding(og_inputs, embedding=embedding,
                                                               embedding_size=hps.embedding_dim)
-            inputs = inputs.to(device)
-            inputs = inputs[0, :].unsqueeze(0)
+            targets = mapper.map_words_to_indices(targets)
+
+            if cuda:
+                inputs = inputs.cuda()
+                targets = targets.cuda()
 
             outputs = model(inputs)
 
-            outputs = F.softmax(outputs, dim=2).detach().cpu().numpy()
-            #output_values, output_indices = torch.topk(outputs, 10, dim=2)
-            outputs = outputs.squeeze(0)
+            loss = criterion(outputs.permute(0, 2, 1), targets)
+
+            perplexities.append(np.exp(loss.detach().cpu().numpy()))
+
+            topk = F.softmax(outputs, dim=2)[0, :, :]
+
+            topk = torch.topk(topk, 1, dim=1)[1].squeeze(1)
+
+            print(topk.shape)
+
+            outputs = F.softmax(outputs, dim=2)[0, :, :].detach().cpu().numpy()
 
             outs = []
             idxs = np.array(list(range(vocab_size)))
-            for i in range(outputs.shape[0]):
-                
-                outs.append(np.random.choice(idxs, p=np.array(outputs[i,:])))
-            output = torch.tensor(outs)
-                
-            print("output", output)
-            original_input = inputs.squeeze(0)
 
-            input_sequence = input_sequences
+            for i in range(outputs.shape[0]):
+                outs.append(np.random.choice(idxs, p=np.array(outputs[i, :])))
+            output = torch.tensor(outs)
+
+            input_sequence = og_inputs[0, :]
+            predicted_sequence = [idx_to_word[c] for c in topk.detach().cpu().numpy()]
+            sampled_sequence = [idx_to_word[c] for c in output.detach().cpu().numpy()]
+
+            print('\nInput sequence')
             print(input_sequence)
 
             print('\nPredicted sequence:')
-            predicted_sequence = [idx_to_word[c] for c in output.detach().cpu().numpy()]
             print(predicted_sequence)
+
+            print('\nSampled sequence:')
+            print(sampled_sequence)
 
             prev_word = ""
             for i in range(1, len(predicted_sequence)):
-                words = input_sequence[0][:i]
+                words = input_sequence[:i]
                 predicted_next_word = predicted_sequence[i - 1]
+                sampled_next_word = sampled_sequence[i - 1]
 
-                if predicted_next_word == '</s>' and (prev_word == '</s>' or input_sequence[0][i] == '</s>'):
+                if sampled_next_word == '</s>' and (prev_word == '</s>' or input_sequence[i] == '</s>'):
                     break
 
-                prev_word = predicted_next_word
+                prev_word = sampled_next_word
 
-                print(" ".join(list(words)), "["+predicted_next_word+"]")
+                print(" ".join(list(words)), "[" + predicted_next_word + "|" + sampled_next_word + "]")
 
             counter += 1
-            
+
             if counter > 10:
                 break
             else:
@@ -248,7 +272,7 @@ def train_model(hps, idx_to_word, model, train_loader, validation_loader, mapper
         # Validation
 
         P.iloc[i, 2] = sum(perplexities) / len(perplexities)
-        print(P)
+        #print(P)
 
         model.eval()
 
@@ -295,7 +319,7 @@ def init_hps():
     parser.add_argument("--lstm_h_dim", type=int, default=600,
                         help="dimension of the hidden layer for lstm")
 
-    parser.add_argument("--embedding_dim", type=int, default=500,
+    parser.add_argument("--embedding_dim", type=int, default=100,
                         help="dimension of the embedding")
 
     parser.add_argument("--batch_size", type=int, default=16,
@@ -313,4 +337,4 @@ def init_hps():
 
 
 if __name__ == "__main__":
-    main(True)
+    main(False)
