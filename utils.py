@@ -7,14 +7,18 @@ data_file = "testdata.txt"
 ngram_size = 6
 
 
-def preprocess_lines(lines):
-    return list(filter(lambda x: len(x) > 3 and len(x) < 50, lines))
+def process_lines(lines):
+    l = []
+    for line in lines:
+        if 3 < len(line.split()) < 50:
+            l.append(line)
+    return l
 
 
 def read_file(filename):
     with open(filename, 'r', encoding="utf-8") as file:
         lines = list(map(lambda line: line.strip(), file.readlines()))
-    return preprocess_lines(lines)
+    return process_lines(lines)
 
 
 class ReadLines(torch.utils.data.Dataset):
