@@ -7,10 +7,14 @@ data_file = "testdata.txt"
 ngram_size = 6
 
 
+def preprocess_lines(lines):
+    return list(filter(lambda x: len(x) > 2, lines))
+
+
 def read_file(filename):
     with open(filename, 'r', encoding="utf-8") as file:
         lines = list(map(lambda line: line.strip(), file.readlines()))
-    return lines
+    return preprocess_lines(lines)
 
 
 class ReadLines(torch.utils.data.Dataset):

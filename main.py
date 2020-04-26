@@ -18,7 +18,7 @@ import time
 import os
 
 data_file_size = 1000
-data_file = "testdata/testdata_200.txt"
+data_file = "testdata/testdata_20000.txt"
 
 model_load_path = "model_0.2k_600_100.pth"
 vocab_info_load_path = "vocab_info_0.2k_600_100.json"
@@ -105,6 +105,8 @@ def main(load=False):
     train_set_len = int(len(dataset) * 0.6)
     test_set_len = int(len(dataset) * 0.2)
     validation_set_len = int(len(dataset) * 0.2)
+    while train_set_len + test_set_len + validation_set_len != len(dataset):
+        validation_set_len += 1
 
     train_set, test_set, validation_set = torch.utils.data.random_split(dataset, [train_set_len, test_set_len,
                                                                                   validation_set_len])
@@ -352,7 +354,7 @@ def init_hps():
     parser.add_argument("--lstm_h_dim", type=int, default=600,
                         help="dimension of the hidden layer for lstm")
 
-    parser.add_argument("--embedding_dim", type=int, default=100,
+    parser.add_argument("--embedding_dim", type=int, default=500,
                         help="dimension of the embedding")
 
     parser.add_argument("--batch_size", type=int, default=16,
@@ -370,4 +372,4 @@ def init_hps():
 
 
 if __name__ == "__main__":
-    main(True)
+    main(False)
