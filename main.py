@@ -17,8 +17,8 @@ from models import LSTM
 import time
 import os
 
-data_file_size = 1000
-data_file = "testdata/testdata_20000.txt"
+data_file_size = 20000
+data_file = "testdata_medium.txt"
 
 model_load_path = "model_0.2k_600_100.pth"
 vocab_info_load_path = "vocab_info_0.2k_600_100.json"
@@ -354,7 +354,7 @@ def init_hps():
     parser.add_argument("--lstm_h_dim", type=int, default=600,
                         help="dimension of the hidden layer for lstm")
 
-    parser.add_argument("--embedding_dim", type=int, default=500,
+    parser.add_argument("--embedding_dim", type=int, default=250,
                         help="dimension of the embedding")
 
     parser.add_argument("--batch_size", type=int, default=16,
