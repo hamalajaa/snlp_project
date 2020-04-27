@@ -301,8 +301,11 @@ def train_model(hps, idx_to_word, model, train_loader, validation_loader, mapper
             print(
                 f'Epoch {i} took {time.time() - epoch_start}s, training loss: {training_loss[-1]}, validation loss: {validation_loss[-1]}')
 
-    torch.save(model.state_dict(), model_save_path(data_file_size, hps.lstm_h_dim, hps.embedding_dim))
+    print("Training finished!\nSaving model information...")
+    m_save_path = model_save_path(data_file_size, hps.lstm_h_dim, hps.embedding_dim)
+    torch.save(model.state_dict(), m_save_path)
     P.to_csv(perplexity_save_path(data_file_size, hps.lstm_h_dim, hps.embedding_dim), index=False, header=True)
+    print(f"Saved model to {m_save_path}")
 
 
 def init_hps():
@@ -329,4 +332,4 @@ def init_hps():
 
 
 if __name__ == "__main__":
-    main(False)
+    main(load=False)
