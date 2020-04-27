@@ -40,6 +40,20 @@ class ReadLines(torch.utils.data.Dataset):
         return len(self.lines)
 
 
+def collate_fn(sentences):
+    """
+    Input:
+        List of sentences: ("sentence1", "sentence2"...)
+    Output:
+        List of sentences: ("sentence1", "sentence2"...)
+        max sentence length
+    """
+    print(sentences[0])
+    max_length = np.max([len(sentence.split()) for sentence in sentences])
+    print(max_length)
+
+    return sentences, max_length
+
 def create_unique_words(lines):
     """
     Input:

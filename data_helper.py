@@ -8,20 +8,19 @@ class SentenceMapper:
     Maps a list of sentences to tensor format.
     """
 
-    def __init__(self, sentences, word_to_idx, idx_to_word, N):
-        self.N = N
+    def __init__(self, sentences, word_to_idx, idx_to_word):
         self.sentences = sentences
         self.word_to_idx = word_to_idx
         self.idx_to_word = idx_to_word
         self.V = len(word_to_idx.keys())
         self.D = len(sentences)
 
-    def map_words_to_indices(self, batch, padding_character="</s>"):
+    def map_words_to_indices(self, batch, N, padding_character="</s>"):
         sentences = batch
 
         # tensor size parameters
         D = len(sentences)
-        N = self.N - 1
+        N = N - 1
 
         tensor = torch.zeros([D, N], dtype=torch.int64)
 
@@ -36,12 +35,11 @@ class SentenceMapper:
 
         return tensor
 
-    def pad_sentences(self, batch, padding_character="</s>"):
+    def pad_sentences(self, batch, N, padding_character="</s>"):
         sentences = batch
 
         # tensor size parameters
         D = len(sentences)
-        N = self.N
 
         tensor = np.zeros((D, N), dtype=object)
 
@@ -64,12 +62,12 @@ class SentenceMapper:
 
         return tensor
 
-    def map_sentences_to_padded_embedding(self, batch, embedding, embedding_size):
+    def map_sentences_to_padded_embedding(self, batch, embedding, N, embedding_size):
         sentences = batch
 
         # tensor size parameters
         D = len(sentences)
-        N = self.N - 1
+        N = N - 1
 
         tensor = torch.zeros([D, N, embedding_size], dtype=torch.float32)
 

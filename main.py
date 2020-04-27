@@ -10,6 +10,7 @@ import pandas as pd
 import utils
 import time
 
+from utils import collate_fn
 from utils import createPath
 from utils import perplexity_save_path
 from utils import perplexity_test_save_path
@@ -19,8 +20,8 @@ from utils import embedding_model_save_path
 from data_helper import SentenceMapper
 from models import LSTM
 
-data_file_size = 1000
-data_file = "testdata_1000.txt"
+data_file_size = 20000
+data_file = "testdata_200.txt"
 
 # Path from which the model is loaded
 model_load_path = "./results/0.704k_1000_500/model.pth"
@@ -76,15 +77,15 @@ def main(load=False):
     train_set, test_set, validation_set = torch.utils.data.random_split(dataset, [train_set_len, test_set_len,
                                                                                   validation_set_len])
 
-    train_loader = torch.utils.data.DataLoader(dataset=train_set, batch_size=hps.batch_size, num_workers=8, shuffle=True)
-    test_loader = torch.utils.data.DataLoader(dataset=test_set, batch_size=hps.batch_size, num_workers=8, shuffle=True)
-    validation_loader = torch.utils.data.DataLoader(dataset=validation_set, batch_size=hps.batch_size, num_workers=8, shuffle=True)
+    train_loader = torch.utils.data.DataLoader(dataset=train_set, batch_size=hps.batch_size, num_workers=8, shuffle=True, collate_fn=collate_fn)
+    test_loader = torch.utils.data.DataLoader(dataset=test_set, batch_size=hps.batch_size, num_workers=8, shuffle=True, collate_fn=collate_fn)
+    validation_loader = torch.utils.data.DataLoader(dataset=validation_set, batch_size=hps.batch_size, num_workers=8, shuffle=True, collate_fn=collate_fn)
 
     # Init model
     if not load:
 
         word_to_idx, idx_to_word = utils.build_index(unique_words)
-        mapper = SentenceMapper(lines, word_to_idx, idx_to_word, n)
+        mapper = SentenceMapper(lines, word_to_idx, idx_to_word)
 
         vocab_info = {'idx_to_word': idx_to_word, 'word_to_idx': word_to_idx, 'vocab_size': vocab_size}
 
@@ -106,7 +107,7 @@ def main(load=False):
         word_to_idx = vocab_info['word_to_idx']
         vocab_size = vocab_info['vocab_size']
 
-        mapper = SentenceMapper(lines, word_to_idx, idx_to_word, n)
+        mapper = SentenceMapper(lines, word_to_idx, idx_to_word)
 
         embedding = fasttext.load_model(embedding_model_save_path(data_file_size, hps.lstm_h_dim, hps.embedding_dim))
 
@@ -123,14 +124,14 @@ def main(load=False):
 
         perplexities = []
 
-        for _, data in enumerate(test_loader):
-
-            padded_data = mapper.pad_sentences(data)
+        for _, (data, N) in enumerate(test_loader):
+            
+            padded_data = mapper.pad_sentences(data, N)
 
             og_inputs, targets = utils.inputs_and_targets_from_sequences(padded_data)
             inputs = mapper.map_sentences_to_padded_embedding(og_inputs, embedding=embedding,
-                                                              embedding_size=hps.embedding_dim)
-            targets = mapper.map_words_to_indices(targets)
+                                                              embedding_size=hps.embedding_dim, N=N)
+            targets = mapper.map_words_to_indices(targets, N=N)
 
             if cuda:
                 inputs = inputs.cuda()
@@ -234,13 +235,13 @@ def train_model(hps, idx_to_word, model, train_loader, validation_loader, mapper
 
         perplexities = []
 
-        for _, data in enumerate(train_loader):
-
-            padded_data = mapper.pad_sentences(data)
+        for _, (data, N) in enumerate(train_loader):
+            print("N", N)
+            padded_data = mapper.pad_sentences(data, N=N)
             inputs, targets = utils.inputs_and_targets_from_sequences(padded_data)
             inputs = mapper.map_sentences_to_padded_embedding(inputs, embedding=embedding,
-                                                              embedding_size=hps.embedding_dim)
-            targets = mapper.map_words_to_indices(targets)
+                                                              embedding_size=hps.embedding_dim, N=N)
+            targets = mapper.map_words_to_indices(targets, N=N)
 
             if cuda:
                 inputs = inputs.cuda()
@@ -271,13 +272,13 @@ def train_model(hps, idx_to_word, model, train_loader, validation_loader, mapper
 
         model.eval()
 
-        for _, data in enumerate(validation_loader):
+        for _, (data, N) in enumerate(validation_loader):
 
-            padded_data = mapper.pad_sentences(data)
+            padded_data = mapper.pad_sentences(data, N=N)
             inputs, targets = utils.inputs_and_targets_from_sequences(padded_data)
             inputs = mapper.map_sentences_to_padded_embedding(inputs, embedding=embedding,
-                                                              embedding_size=hps.embedding_dim)
-            targets = mapper.map_words_to_indices(targets)
+                                                              embedding_size=hps.embedding_dim, N=N)
+            targets = mapper.map_words_to_indices(targets, N=N)
 
             if cuda:
                 inputs = inputs.cuda()
@@ -311,7 +312,7 @@ def train_model(hps, idx_to_word, model, train_loader, validation_loader, mapper
 def init_hps():
     parser = argparse.ArgumentParser()
 
-    parser.add_argument("--lstm_h_dim", type=int, default=1000,
+    parser.add_argument("--lstm_h_dim", type=int, default=1500,
                         help="dimension of the hidden layer for lstm")
 
     parser.add_argument("--embedding_dim", type=int, default=500,
