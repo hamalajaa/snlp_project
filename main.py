@@ -76,9 +76,9 @@ def main(load=False):
     train_set, test_set, validation_set = torch.utils.data.random_split(dataset, [train_set_len, test_set_len,
                                                                                   validation_set_len])
 
-    train_loader = torch.utils.data.DataLoader(dataset=train_set, batch_size=16, num_workers=8, shuffle=True)
-    test_loader = torch.utils.data.DataLoader(dataset=test_set, batch_size=16, num_workers=8, shuffle=True)
-    validation_loader = torch.utils.data.DataLoader(dataset=validation_set, batch_size=16, num_workers=8, shuffle=True)
+    train_loader = torch.utils.data.DataLoader(dataset=train_set, batch_size=hps.batch_size, num_workers=8, shuffle=True)
+    test_loader = torch.utils.data.DataLoader(dataset=test_set, batch_size=hps.batch_size, num_workers=8, shuffle=True)
+    validation_loader = torch.utils.data.DataLoader(dataset=validation_set, batch_size=hps.batch_size, num_workers=8, shuffle=True)
 
     # Init model
     if not load:
