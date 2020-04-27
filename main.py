@@ -21,14 +21,14 @@ from data_helper import SentenceMapper
 from models import LSTM
 
 data_file_size = 20000
-data_file = "./testdata/testdata_20000.txt"
+data_file = "testdata_20000.txt"
 
 # Path from which the model is loaded
-model_load_path = "./results/0.704k_1500_500/model.pth"
+model_load_path = "./results/16.253k_600_500/model.pth"
 
 # Path from which training vocabulary information is loaded.
 # We will use this in the prediction phase.
-vocab_info_load_path = "./results/0.704k_1000_500/vocab.json"
+vocab_info_load_path = "./results/16.253k_600_500/vocab.json"
 
 # Device check, use GPU if possible
 cuda = torch.cuda.is_available()
@@ -320,7 +320,7 @@ def init_hps():
     parser.add_argument("--batch_size", type=int, default=64,
                         help="batch size")
 
-    parser.add_argument("--n_epochs", type=int, default=50,
+    parser.add_argument("--n_epochs", type=int, default=5,
                         help="number of training epochs")
 
     parser.add_argument('-f', '--file',
@@ -332,4 +332,4 @@ def init_hps():
 
 
 if __name__ == "__main__":
-    main(load=False)
+    main(load=True)
