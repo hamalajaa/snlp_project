@@ -18,10 +18,10 @@ import time
 import os
 
 data_file_size = 1000
-data_file = "testdata_50000.txt"
+data_file = "testdata_20000.txt"
 
-model_load_path = "model_0.2k_600_100.pth"
-vocab_info_load_path = "vocab_info_0.2k_600_100.json"
+model_load_path = "./results/16.253k_1000_500/model.pth"
+vocab_info_load_path = "./results/16.253k_1000_500/vocab.json"
 
 
 def createPath(filePath):
@@ -81,6 +81,8 @@ def main(load=False):
     hps = init_hps()
 
     criterion = nn.CrossEntropyLoss()
+
+    torch.manual_seed(0)
 
     # Read file
     if load:
@@ -247,7 +249,7 @@ def train_model(hps, idx_to_word, model, train_loader, validation_loader, mapper
 
     print(device, cuda)
 
-    optimizer = torch.optim.Adam(model.parameters(), lr=0.001, betas=(0.5, 0.999))
+    optimizer = torch.optim.Adam(model.parameters(), lr=0.0002, betas=(0.5, 0.5))
 
     # Track loss
     training_loss, validation_loss = [], []
@@ -353,16 +355,16 @@ def train_model(hps, idx_to_word, model, train_loader, validation_loader, mapper
 def init_hps():
     parser = argparse.ArgumentParser()
 
-    parser.add_argument("--lstm_h_dim", type=int, default=600,
+    parser.add_argument("--lstm_h_dim", type=int, default=1000,
                         help="dimension of the hidden layer for lstm")
 
-    parser.add_argument("--embedding_dim", type=int, default=250,
+    parser.add_argument("--embedding_dim", type=int, default=500,
                         help="dimension of the embedding")
 
-    parser.add_argument("--batch_size", type=int, default=16,
+    parser.add_argument("--batch_size", type=int, default=512,
                         help="batch size")
 
-    parser.add_argument("--n_epochs", type=int, default=20,
+    parser.add_argument("--n_epochs", type=int, default=50,
                         help="number of training epochs")
 
     parser.add_argument('-f', '--file',
