@@ -15,7 +15,7 @@ def process_lines(lines):
     """
     l = []
     for line in lines:
-        if 3 < len(line.split()) < 50:
+        if 3 < len(line.split()) < 20:
             l.append(line)
     return l
 
@@ -48,9 +48,7 @@ def collate_fn(sentences):
         List of sentences: ("sentence1", "sentence2"...)
         max sentence length
     """
-    print(sentences[0])
     max_length = np.max([len(sentence.split()) for sentence in sentences])
-    print(max_length)
 
     return sentences, max_length
 

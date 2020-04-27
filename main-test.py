@@ -5,32 +5,70 @@ import fasttext
 import json
 import pickle
 import numpy as np
-import argparse
-import pandas as pd
-import utils
-import time
 
-from utils import collate_fn
-from utils import createPath
-from utils import perplexity_save_path
-from utils import perplexity_test_save_path
-from utils import model_save_path
-from utils import vocab_info_save_path
-from utils import embedding_model_save_path
+import argparse
+
+import pandas as pd
+
+import utils
 from data_helper import SentenceMapper
 from models import LSTM
 
-data_file_size = 20000
-data_file = "./testdata/testdata_20000.txt"
+import time
+import os
 
-# Path from which the model is loaded
-model_load_path = "./results/0.704k_1500_500/model.pth"
+data_file_size = 1000
+data_file = "testdata/testdata_50000.txt"
 
-# Path from which training vocabulary information is loaded.
-# We will use this in the prediction phase.
-vocab_info_load_path = "./results/0.704k_1000_500/vocab.json"
+model_load_path = "./results/16.428k_600_500/model.pth"
+vocab_info_load_path = "./results/16.428k_600_500/vocab.json"
 
-# Device check, use GPU if possible
+
+def createPath(filePath):
+    dir = os.path.dirname(filePath)
+    # create directory if it does not exist
+    if not os.path.exists(dir):
+        os.makedirs(dir)
+
+
+def perplexity_save_path(data_file_size, lstm_h_dim, embedding_dim):
+    path = "./results/" + str(data_file_size / 1000) + "k_" + str(lstm_h_dim) + "_" + str(
+        embedding_dim) + "/perplexity.csv"
+    createPath(path)
+
+    return path
+
+
+def perplexity_test_save_path(data_file_size, lstm_h_dim, embedding_dim):
+    path = "./results/" + str(data_file_size / 1000) + "k_" + str(lstm_h_dim) + "_" + str(
+        embedding_dim) + "/perplexity.data"
+    createPath(path)
+
+    return path
+
+
+def model_save_path(data_file_size, lstm_h_dim, embedding_dim):
+    path = "./results/" + str(data_file_size / 1000) + "k_" + str(lstm_h_dim) + "_" + str(embedding_dim) + "/model.pth"
+    createPath(path)
+
+    return path
+
+
+def vocab_info_save_path(data_file_size, lstm_h_dim, embedding_dim):
+    path = "./results/" + str(data_file_size / 1000) + "k_" + str(lstm_h_dim) + "_" + str(embedding_dim) + "/vocab.json"
+    createPath(path)
+
+    return path
+
+
+def embedding_model_save_path(data_file_size, lstm_h_dim, embedding_dim):
+    path = "./results/" + str(data_file_size / 1000) + "k_" + str(lstm_h_dim) + "_" + str(
+        embedding_dim) + "/embedding.bin"
+    createPath(path)
+
+    return path
+
+
 cuda = torch.cuda.is_available()
 if cuda:
     device = torch.device("cuda:0")
@@ -43,8 +81,6 @@ def main(load=False):
     hps = init_hps()
 
     criterion = nn.CrossEntropyLoss()
-
-    torch.manual_seed(0)
 
     # Read file
     if load:
@@ -77,15 +113,15 @@ def main(load=False):
     train_set, test_set, validation_set = torch.utils.data.random_split(dataset, [train_set_len, test_set_len,
                                                                                   validation_set_len])
 
-    train_loader = torch.utils.data.DataLoader(dataset=train_set, batch_size=hps.batch_size, num_workers=8, shuffle=True, collate_fn=collate_fn)
-    test_loader = torch.utils.data.DataLoader(dataset=test_set, batch_size=hps.batch_size, num_workers=8, shuffle=True, collate_fn=collate_fn)
-    validation_loader = torch.utils.data.DataLoader(dataset=validation_set, batch_size=hps.batch_size, num_workers=8, shuffle=True, collate_fn=collate_fn)
+    train_loader = torch.utils.data.DataLoader(dataset=train_set, batch_size=16, num_workers=8, shuffle=True)
+    test_loader = torch.utils.data.DataLoader(dataset=test_set, batch_size=16, num_workers=8, shuffle=True)
+    validation_loader = torch.utils.data.DataLoader(dataset=validation_set, batch_size=16, num_workers=8, shuffle=True)
 
     # Init model
     if not load:
 
         word_to_idx, idx_to_word = utils.build_index(unique_words)
-        mapper = SentenceMapper(lines, word_to_idx, idx_to_word)
+        mapper = SentenceMapper(lines, word_to_idx, idx_to_word, n)
 
         vocab_info = {'idx_to_word': idx_to_word, 'word_to_idx': word_to_idx, 'vocab_size': vocab_size}
 
@@ -107,7 +143,7 @@ def main(load=False):
         word_to_idx = vocab_info['word_to_idx']
         vocab_size = vocab_info['vocab_size']
 
-        mapper = SentenceMapper(lines, word_to_idx, idx_to_word)
+        mapper = SentenceMapper(lines, word_to_idx, idx_to_word, n)
 
         embedding = fasttext.load_model(embedding_model_save_path(data_file_size, hps.lstm_h_dim, hps.embedding_dim))
 
@@ -124,14 +160,14 @@ def main(load=False):
 
         perplexities = []
 
-        for _, (data, N) in enumerate(test_loader):
-            
-            padded_data = mapper.pad_sentences(data, N)
+        for _, data in enumerate(test_loader):
+
+            padded_data = mapper.pad_sentences(data)
 
             og_inputs, targets = utils.inputs_and_targets_from_sequences(padded_data)
             inputs = mapper.map_sentences_to_padded_embedding(og_inputs, embedding=embedding,
-                                                              embedding_size=hps.embedding_dim, N=N)
-            targets = mapper.map_words_to_indices(targets, N=N)
+                                                              embedding_size=hps.embedding_dim)
+            targets = mapper.map_words_to_indices(targets)
 
             if cuda:
                 inputs = inputs.cuda()
@@ -235,12 +271,18 @@ def train_model(hps, idx_to_word, model, train_loader, validation_loader, mapper
 
         perplexities = []
 
-        for _, (data, N) in enumerate(train_loader):
-            padded_data = mapper.pad_sentences(data, N=N)
+        for _, data in enumerate(train_loader):
+
+            # ":-D"
+
+            padded_data = mapper.pad_sentences(data)
+
             inputs, targets = utils.inputs_and_targets_from_sequences(padded_data)
+
             inputs = mapper.map_sentences_to_padded_embedding(inputs, embedding=embedding,
-                                                              embedding_size=hps.embedding_dim, N=N)
-            targets = mapper.map_words_to_indices(targets, N=N)
+                                                              embedding_size=hps.embedding_dim)
+
+            targets = mapper.map_words_to_indices(targets)
 
             if cuda:
                 inputs = inputs.cuda()
@@ -271,13 +313,16 @@ def train_model(hps, idx_to_word, model, train_loader, validation_loader, mapper
 
         model.eval()
 
-        for _, (data, N) in enumerate(validation_loader):
+        for _, data in enumerate(validation_loader):
 
-            padded_data = mapper.pad_sentences(data, N=N)
+            # ":-D"
+
+            padded_data = mapper.pad_sentences(data)
+
             inputs, targets = utils.inputs_and_targets_from_sequences(padded_data)
             inputs = mapper.map_sentences_to_padded_embedding(inputs, embedding=embedding,
-                                                              embedding_size=hps.embedding_dim, N=N)
-            targets = mapper.map_words_to_indices(targets, N=N)
+                                                              embedding_size=hps.embedding_dim)
+            targets = mapper.map_words_to_indices(targets)
 
             if cuda:
                 inputs = inputs.cuda()
@@ -301,11 +346,8 @@ def train_model(hps, idx_to_word, model, train_loader, validation_loader, mapper
             print(
                 f'Epoch {i} took {time.time() - epoch_start}s, training loss: {training_loss[-1]}, validation loss: {validation_loss[-1]}')
 
-    print("Training finished!\nSaving model information...")
-    m_save_path = model_save_path(data_file_size, hps.lstm_h_dim, hps.embedding_dim)
-    torch.save(model.state_dict(), m_save_path)
+    torch.save(model.state_dict(), model_save_path(data_file_size, hps.lstm_h_dim, hps.embedding_dim))
     P.to_csv(perplexity_save_path(data_file_size, hps.lstm_h_dim, hps.embedding_dim), index=False, header=True)
-    print(f"Saved model to {m_save_path}")
 
 
 def init_hps():
@@ -314,13 +356,13 @@ def init_hps():
     parser.add_argument("--lstm_h_dim", type=int, default=600,
                         help="dimension of the hidden layer for lstm")
 
-    parser.add_argument("--embedding_dim", type=int, default=250,
+    parser.add_argument("--embedding_dim", type=int, default=500,
                         help="dimension of the embedding")
 
-    parser.add_argument("--batch_size", type=int, default=64,
+    parser.add_argument("--batch_size", type=int, default=512,
                         help="batch size")
 
-    parser.add_argument("--n_epochs", type=int, default=50,
+    parser.add_argument("--n_epochs", type=int, default=100,
                         help="number of training epochs")
 
     parser.add_argument('-f', '--file',
@@ -332,4 +374,4 @@ def init_hps():
 
 
 if __name__ == "__main__":
-    main(load=False)
+    main(True)
