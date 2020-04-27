@@ -1,6 +1,8 @@
 import numpy as np
-from data_helper import SentenceMapper
+import os
 import torch
+
+from data_helper import SentenceMapper
 from itertools import chain
 
 data_file = "testdata.txt"
@@ -8,6 +10,9 @@ ngram_size = 6
 
 
 def process_lines(lines):
+    """
+    Preprocesses lines of text by removing too short and too long sentences.
+    """
     l = []
     for line in lines:
         if 3 < len(line.split()) < 50:
@@ -16,6 +21,9 @@ def process_lines(lines):
 
 
 def read_file(filename):
+    """
+    Reads a file and preprocesses it by removing too short and too long sentences.
+    """
     with open(filename, 'r', encoding="utf-8") as file:
         lines = list(map(lambda line: line.strip(), file.readlines()))
     return process_lines(lines)
@@ -64,6 +72,11 @@ def create_unique_words(lines):
 
 
 def build_index(unique_words):
+    """
+    Builds mapping from word to index and from index to word.
+    Mapping can be used to map model outputs to words, as well as,
+    to map input words to numerical format.
+    """
     word_to_idx = {}
     idx_to_word = {}
     for i, word in enumerate(unique_words):
@@ -74,11 +87,61 @@ def build_index(unique_words):
 
 
 def inputs_and_targets_from_sequences(tensor):
-    # An input tensor of shape [d x n] is expected where:
-    #       d = number of sentences
-    #       n = length of the longest sentence
-
+    """
+    An input tensor of shape [d x n] is expected where:
+          d = number of sentences
+          n = length of the longest sentence
+    """
     inputs = tensor[:, :-1]
     targets = tensor[:, 1:]
 
     return inputs, targets
+
+
+"""
+File saving and loading utility functions:
+"""
+
+def createPath(filePath):
+    dir = os.path.dirname(filePath)
+    # create directory if it does not exist
+    if not os.path.exists(dir):
+        os.makedirs(dir)
+
+
+def perplexity_save_path(data_file_size, lstm_h_dim, embedding_dim):
+    path = "./results/" + str(data_file_size / 1000) + "k_" + str(lstm_h_dim) + "_" + str(
+        embedding_dim) + "/perplexity.csv"
+    createPath(path)
+
+    return path
+
+
+def perplexity_test_save_path(data_file_size, lstm_h_dim, embedding_dim):
+    path = "./results/" + str(data_file_size / 1000) + "k_" + str(lstm_h_dim) + "_" + str(
+        embedding_dim) + "/perplexity.data"
+    createPath(path)
+
+    return path
+
+
+def model_save_path(data_file_size, lstm_h_dim, embedding_dim):
+    path = "./results/" + str(data_file_size / 1000) + "k_" + str(lstm_h_dim) + "_" + str(embedding_dim) + "/model.pth"
+    createPath(path)
+
+    return path
+
+
+def vocab_info_save_path(data_file_size, lstm_h_dim, embedding_dim):
+    path = "./results/" + str(data_file_size / 1000) + "k_" + str(lstm_h_dim) + "_" + str(embedding_dim) + "/vocab.json"
+    createPath(path)
+
+    return path
+
+
+def embedding_model_save_path(data_file_size, lstm_h_dim, embedding_dim):
+    path = "./results/" + str(data_file_size / 1000) + "k_" + str(lstm_h_dim) + "_" + str(
+        embedding_dim) + "/embedding.bin"
+    createPath(path)
+
+    return path

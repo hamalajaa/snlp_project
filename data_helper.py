@@ -2,23 +2,6 @@ from torch.utils.data import Dataset
 import torch
 import numpy as np
 
-
-class WP2008Dataset(Dataset):
-    """
-    A custom Dataset for a list of sentences
-    in tensor format.
-    """
-
-    def __init__(self, tensor):
-        self.tensor = tensor
-
-    def __getitem__(self, index):
-        return self.tensor[index]
-
-    def __len__(self):
-        return self.tensor.size(0)
-
-
 class SentenceMapper:
     """
     Maps a list of sentences to tensor format.

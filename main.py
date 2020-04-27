@@ -5,70 +5,31 @@ import fasttext
 import json
 import pickle
 import numpy as np
-
 import argparse
-
 import pandas as pd
-
 import utils
+import time
+
+from utils import createPath
+from utils import perplexity_save_path
+from utils import perplexity_test_save_path
+from utils import model_save_path
+from utils import vocab_info_save_path
+from utils import embedding_model_save_path
 from data_helper import SentenceMapper
 from models import LSTM
 
-import time
-import os
-
 data_file_size = 1000
-data_file = "testdata_20000.txt"
+data_file = "testdata_1000.txt"
 
-model_load_path = "./results/16.253k_1000_500/model.pth"
-vocab_info_load_path = "./results/16.253k_1000_500/vocab.json"
+# Path from which the model is loaded
+model_load_path = "./results/0.704k_1000_500/model.pth"
 
+# Path from which training vocabulary information is loaded.
+# We will use this in the prediction phase.
+vocab_info_load_path = "./results/0.704k_1000_500/vocab.json"
 
-def createPath(filePath):
-    dir = os.path.dirname(filePath)
-    # create directory if it does not exist
-    if not os.path.exists(dir):
-        os.makedirs(dir)
-
-
-def perplexity_save_path(data_file_size, lstm_h_dim, embedding_dim):
-    path = "./results/" + str(data_file_size / 1000) + "k_" + str(lstm_h_dim) + "_" + str(
-        embedding_dim) + "/perplexity.csv"
-    createPath(path)
-
-    return path
-
-
-def perplexity_test_save_path(data_file_size, lstm_h_dim, embedding_dim):
-    path = "./results/" + str(data_file_size / 1000) + "k_" + str(lstm_h_dim) + "_" + str(
-        embedding_dim) + "/perplexity.data"
-    createPath(path)
-
-    return path
-
-
-def model_save_path(data_file_size, lstm_h_dim, embedding_dim):
-    path = "./results/" + str(data_file_size / 1000) + "k_" + str(lstm_h_dim) + "_" + str(embedding_dim) + "/model.pth"
-    createPath(path)
-
-    return path
-
-
-def vocab_info_save_path(data_file_size, lstm_h_dim, embedding_dim):
-    path = "./results/" + str(data_file_size / 1000) + "k_" + str(lstm_h_dim) + "_" + str(embedding_dim) + "/vocab.json"
-    createPath(path)
-
-    return path
-
-
-def embedding_model_save_path(data_file_size, lstm_h_dim, embedding_dim):
-    path = "./results/" + str(data_file_size / 1000) + "k_" + str(lstm_h_dim) + "_" + str(
-        embedding_dim) + "/embedding.bin"
-    createPath(path)
-
-    return path
-
-
+# Device check, use GPU if possible
 cuda = torch.cuda.is_available()
 if cuda:
     device = torch.device("cuda:0")
@@ -275,15 +236,10 @@ def train_model(hps, idx_to_word, model, train_loader, validation_loader, mapper
 
         for _, data in enumerate(train_loader):
 
-            # ":-D"
-
             padded_data = mapper.pad_sentences(data)
-
             inputs, targets = utils.inputs_and_targets_from_sequences(padded_data)
-
             inputs = mapper.map_sentences_to_padded_embedding(inputs, embedding=embedding,
                                                               embedding_size=hps.embedding_dim)
-
             targets = mapper.map_words_to_indices(targets)
 
             if cuda:
@@ -317,10 +273,7 @@ def train_model(hps, idx_to_word, model, train_loader, validation_loader, mapper
 
         for _, data in enumerate(validation_loader):
 
-            # ":-D"
-
             padded_data = mapper.pad_sentences(data)
-
             inputs, targets = utils.inputs_and_targets_from_sequences(padded_data)
             inputs = mapper.map_sentences_to_padded_embedding(inputs, embedding=embedding,
                                                               embedding_size=hps.embedding_dim)
