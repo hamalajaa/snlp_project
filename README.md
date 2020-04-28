@@ -17,4 +17,6 @@ The program will run and required model files will be created.
 
 1. Specify the path to the trained model and vocabulary information. For example `model_load_path = "./results/24.326k_800_800/model.pth"` and `vocab_info_load_path = "./results/24.326k_800_800/vocab.json"`
 
+2. In `main.py`, set `main(load=True)`
+
 2. Run the project with `python main.py`
